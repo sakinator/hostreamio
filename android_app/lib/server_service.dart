@@ -217,7 +217,9 @@ class ServerService {
         path == '/logo.png' ||
         path == '/favicon.png' ||
         path == '/favicon.ico' ||
-        path == '/configure';
+        path == '/configure' ||
+        path == '/mobile-config' ||
+        path == '/api/keys/current';
 
     if (isPublicRoute) {
       request.response.headers.set('Access-Control-Allow-Origin', '*');
@@ -276,6 +278,31 @@ class ServerService {
       if (path == '/' || path == '/configure') {
         request.response.headers.contentType = ContentType.html;
         request.response.write(WebUI.render(localIp: localIp.value, port: port));
+        await request.response.close();
+        return;
+      }
+
+      // 1b. GET /api/keys/current — returns current API key values (for mobile-config page)
+      if (path == '/api/keys/current' && method == 'GET') {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'omdbApiKey': AddonConfig.instance.omdbApiKey,
+          'fanartApiKey': AddonConfig.instance.fanartApiKey,
+          'tvdbApiKey': AddonConfig.instance.tvdbApiKey,
+          'tmdbApiKey': AddonConfig.instance.tmdbApiKey,
+          'dtddApiKey': AddonConfig.instance.dtddApiKey,
+          'torboxApiKey': AddonConfig.instance.torboxApiKey,
+        }));
+        await request.response.close();
+        return;
+      }
+
+      // 1c. GET /mobile-config — Mobile-friendly API key configuration page (QR target)
+      if (path == '/mobile-config') {
+        final ip = localIp.value;
+        final baseUrl = 'http://$ip:$port';
+        request.response.headers.contentType = ContentType.html;
+        request.response.write(_buildMobileConfigPage(baseUrl));
         await request.response.close();
         return;
       }
@@ -786,6 +813,12 @@ class ServerService {
         if (bodyJson.containsKey('tmdbApiKey')) {
           AddonConfig.instance.tmdbApiKey = bodyJson['tmdbApiKey'].toString().trim();
         }
+        if (bodyJson.containsKey('dtddApiKey')) {
+          AddonConfig.instance.dtddApiKey = bodyJson['dtddApiKey'].toString().trim();
+        }
+        if (bodyJson.containsKey('torboxApiKey')) {
+          AddonConfig.instance.torboxApiKey = bodyJson['torboxApiKey'].toString().trim();
+        }
         await AddonConfig.instance.save();
         request.response.headers.contentType = ContentType.json;
         request.response.write(jsonEncode({'success': true}));
@@ -957,5 +990,216 @@ class ServerService {
         'output': logs.join('\n'),
       };
     }
+  }
+
+  /// Builds the mobile-friendly API key configuration page HTML.
+  /// This page is served at GET /mobile-config and is the QR code target.
+  static String _buildMobileConfigPage(String baseUrl) {
+    return '''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Hostreamio — API Key Setup</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --accent: #195feb; --pink: #ff0c82; --green: #3fb950;
+    --red: #f85149; --text: #e6edf3; --muted: #8b949e;
+    --blue: #58a6ff; --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #195feb22, #ff0c8222); border-bottom: 1px solid var(--border); padding: 18px 20px 14px; }
+  .header-row { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--pink)); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .title { font-size: 19px; font-weight: 800; background: linear-gradient(90deg, #58a6ff, #ff0c82); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .content { padding: 16px 16px 32px; max-width: 560px; margin: 0 auto; }
+  .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 20px 0 10px; display: flex; align-items: center; gap: 6px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; }
+  .field-label { font-size: 13px; font-weight: 600; color: var(--text); padding: 12px 14px 0; }
+  .field-hint { font-size: 11px; color: var(--muted); padding: 3px 14px 8px; }
+  .input-row { display: flex; align-items: center; gap: 0; border-top: 1px solid var(--border); }
+  .key-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; padding: 12px 14px; min-width: 0; }
+  .key-input::placeholder { color: var(--muted); font-family: -apple-system, sans-serif; font-size: 12px; }
+  .paste-btn { background: none; border: none; border-left: 1px solid var(--border); padding: 12px 14px; cursor: pointer; color: var(--blue); font-size: 18px; -webkit-tap-highlight-color: transparent; }
+  .paste-btn:active { background: #ffffff0f; }
+  .save-btn { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--accent), #1a4fd8); color: #fff; font-size: 15px; font-weight: 700; border: none; border-radius: var(--radius); cursor: pointer; margin-top: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; -webkit-tap-highlight-color: transparent; transition: opacity 0.15s; }
+  .save-btn:active { opacity: 0.8; }
+  .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 22px; border-radius: 30px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.25s; white-space: nowrap; z-index: 999; }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--green); color: #fff; }
+  .toast.error { background: var(--red); color: #fff; }
+  .status-bar { font-size: 12px; text-align: center; color: var(--muted); margin-top: 12px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #ffffff44; border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .info-box { background: #195feb15; border: 1px solid #195feb44; border-radius: 10px; padding: 12px 14px; margin-top: 16px; font-size: 12px; color: var(--blue); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <div class="logo">🎬</div>
+    <div>
+      <div class="title">Hostreamio Setup</div>
+      <div class="subtitle">Configure API keys from your phone</div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="info-box">
+    📡 Connected to your Android TV at <strong id="serverAddr">$baseUrl</strong><br>
+    Keys are saved directly on your TV. All fields are optional.
+  </div>
+
+  <div class="section-label">🎞️ Metadata &amp; Ratings</div>
+
+  <div class="card">
+    <div class="field-label">OMDb API Key</div>
+    <div class="field-hint">IMDb &amp; Rotten Tomatoes ratings · <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" style="color:var(--blue)">Get free key ↗</a></div>
+    <div class="input-row">
+      <input class="key-input" id="omdbApiKey" type="text" placeholder="Leave empty for built-in fallback" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="paste-btn" onclick="pasteField('omdbApiKey')" title="Paste">📋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field-label">Fanart.tv API Key</div>
+    <div class="field-hint">HD ClearLogos &amp; artwork · <a href="https://fanart.tv/get-an-api-key/" target="_blank" style="color:var(--blue)">Get key ↗</a></div>
+    <div class="input-row">
+      <input class="key-input" id="fanartApiKey" type="text" placeholder="Leave empty for Metahub fallback" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="paste-btn" onclick="pasteField('fanartApiKey')" title="Paste">📋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field-label">TheTVDB API Key</div>
+    <div class="field-hint">Anime episode maps &amp; seasons · <a href="https://thetvdb.com/api-information" target="_blank" style="color:var(--blue)">Get key ↗</a></div>
+    <div class="input-row">
+      <input class="key-input" id="tvdbApiKey" type="text" placeholder="Leave empty for Cinemeta fallback" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="paste-btn" onclick="pasteField('tvdbApiKey')" title="Paste">📋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field-label">TMDB API Key</div>
+    <div class="field-hint">Posters, cast &amp; descriptions · <a href="https://www.themoviedb.org/settings/api" target="_blank" style="color:var(--blue)">Get key ↗</a></div>
+    <div class="input-row">
+      <input class="key-input" id="tmdbApiKey" type="text" placeholder="Leave empty for built-in fallback" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="paste-btn" onclick="pasteField('tmdbApiKey')" title="Paste">📋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field-label">DoesTheDogDie API Key</div>
+    <div class="field-hint">Content warnings &amp; trigger advisories · <a href="https://www.doesthedogdie.com" target="_blank" style="color:var(--blue)">Get key ↗</a></div>
+    <div class="input-row">
+      <input class="key-input" id="dtddApiKey" type="text" placeholder="Leave empty for web fallback" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="paste-btn" onclick="pasteField('dtddApiKey')" title="Paste">📋</button>
+    </div>
+  </div>
+
+  <div class="section-label">⚡ TorBox Cloud Debrid</div>
+
+  <div class="card">
+    <div class="field-label">TorBox API Key</div>
+    <div class="field-hint">Cached torrent debrid streaming · <a href="https://torbox.app" target="_blank" style="color:var(--blue)">Get key ↗</a></div>
+    <div class="input-row">
+      <input class="key-input" id="torboxApiKey" type="text" placeholder="Required for TorBox debrid" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button class="paste-btn" onclick="pasteField('torboxApiKey')" title="Paste">📋</button>
+    </div>
+  </div>
+
+  <button class="save-btn" id="saveBtn" onclick="saveAllKeys()">
+    <span id="saveBtnContent">💾 Save All Keys to TV</span>
+  </button>
+
+  <div class="status-bar" id="statusBar"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE = '$baseUrl';
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => { t.className = 'toast'; }, 3000);
+}
+
+async function pasteField(id) {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text.trim()) {
+      document.getElementById(id).value = text.trim();
+      showToast('✅ Pasted!', 'success');
+    }
+  } catch (e) {
+    showToast('⚠️ Paste blocked — please paste manually', 'error');
+  }
+}
+
+async function loadCurrentKeys() {
+  try {
+    const r = await fetch(BASE + '/api/keys/current');
+    const d = await r.json();
+    const fields = ['omdbApiKey','fanartApiKey','tvdbApiKey','tmdbApiKey','dtddApiKey','torboxApiKey'];
+    fields.forEach(f => {
+      const el = document.getElementById(f);
+      if (el && d[f]) el.value = d[f];
+    });
+    document.getElementById('statusBar').textContent = '✓ Loaded current keys from TV';
+  } catch(e) {
+    document.getElementById('statusBar').textContent = '⚠ Could not load current keys';
+  }
+}
+
+async function saveAllKeys() {
+  const btn = document.getElementById('saveBtn');
+  const content = document.getElementById('saveBtnContent');
+  btn.disabled = true;
+  content.innerHTML = '<span class="spinner"></span> Saving...';
+
+  const payload = {
+    omdbApiKey: document.getElementById('omdbApiKey').value.trim(),
+    fanartApiKey: document.getElementById('fanartApiKey').value.trim(),
+    tvdbApiKey: document.getElementById('tvdbApiKey').value.trim(),
+    tmdbApiKey: document.getElementById('tmdbApiKey').value.trim(),
+    dtddApiKey: document.getElementById('dtddApiKey').value.trim(),
+    torboxApiKey: document.getElementById('torboxApiKey').value.trim(),
+  };
+
+  try {
+    // Save all metadata keys + dtdd + torbox via /api/settings
+    const r1 = await fetch(BASE + '/api/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const d1 = await r1.json();
+    if (!d1.success) throw new Error('Settings save failed');
+
+    showToast('✅ All keys saved to TV!', 'success');
+    document.getElementById('statusBar').textContent = '✓ Keys saved successfully — you can close this page';
+  } catch(e) {
+    showToast('❌ Save failed: ' + e.message, 'error');
+    document.getElementById('statusBar').textContent = '⚠ Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    content.innerHTML = '💾 Save All Keys to TV';
+  }
+}
+
+// Load keys on page open
+loadCurrentKeys();
+</script>
+</body>
+</html>''';
   }
 }

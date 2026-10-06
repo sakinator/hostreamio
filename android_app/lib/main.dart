@@ -19,6 +19,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'player_screen.dart';
 import 'window_service.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -444,6 +445,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                                           children: [
                                             _buildTorboxCard(),
                                             const SizedBox(height: 18),
+                                            _buildQrConfigCard(),
+                                            const SizedBox(height: 18),
                                             _buildOtherApisCard(),
                                             const SizedBox(height: 18),
                                             _buildStreamFilteringCard(),
@@ -492,6 +495,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                               _buildActionButtons(running, manifestUrl, dashboardUrl),
                               const SizedBox(height: 16),
                               _buildTorboxCard(),
+                              const SizedBox(height: 16),
+                              _buildQrConfigCard(),
                               const SizedBox(height: 16),
                               _buildOtherApisCard(),
                               const SizedBox(height: 16),
@@ -2242,6 +2247,214 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// QR Code card — shown only on Android TV so users can scan with phone
+  /// to open the mobile API key configuration page on their phone browser.
+  Widget _buildQrConfigCard() {
+    // Only show this on Android (TV or mobile); hide on Windows desktop
+    if (!Platform.isAndroid) return const SizedBox.shrink();
+
+    return ValueListenableBuilder<String>(
+      valueListenable: ServerService.instance.localIp,
+      builder: (context, ip, _) {
+        final port = AddonConfig.instance.port;
+        final configUrl = 'http://$ip:$port/mobile-config';
+        final isReady = ip.isNotEmpty && ip != '0.0.0.0' && ip != '127.0.0.1' && port > 0;
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161B22),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF195FEB).withOpacity(0.5), width: 1.5),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0D1117), Color(0xFF0D1320)],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF195FEB).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF195FEB).withOpacity(0.3)),
+                    ),
+                    child: const Icon(Icons.qr_code_2_rounded, color: Color(0xFF58A6FF), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Phone Setup — Scan to Configure',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Scan QR with your phone to paste API keys easily',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF8B949E)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              if (!isReady) ...[
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D1117),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF30363D)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF58A6FF))),
+                      SizedBox(width: 10),
+                      Text('Waiting for server to start…', style: TextStyle(color: Color(0xFF8B949E), fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                // QR code + instructions side by side
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // QR code box
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: QrImageView(
+                        data: configUrl,
+                        version: QrVersions.auto,
+                        size: 130,
+                        backgroundColor: Colors.white,
+                        eyeStyle: const QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: Color(0xFF0D1117),
+                        ),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: Color(0xFF0D1117),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Instructions
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'How to use:',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildQrStep('1', 'Open your phone camera'),
+                          _buildQrStep('2', 'Point at the QR code'),
+                          _buildQrStep('3', 'Open the link in browser'),
+                          _buildQrStep('4', 'Paste & save your API keys'),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0D1117),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF30363D)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.link_rounded, size: 13, color: Color(0xFF58A6FF)),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    configUrl,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'monospace',
+                                      color: Color(0xFF58A6FF),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                GestureDetector(
+                                  onTap: () => _copyToClipboard(configUrl, 'Config URL'),
+                                  child: const Icon(Icons.copy_rounded, size: 13, color: Color(0xFF8B949E)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Note
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF195FEB).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF195FEB).withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.wifi_rounded, size: 14, color: Color(0xFF58A6FF)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Phone & TV must be on the same Wi-Fi network. Keys save directly to the TV app.',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF8B949E), height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildQrStep(String num, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        children: [
+          Container(
+            width: 18,
+            height: 18,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFF195FEB).withOpacity(0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(num, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF58A6FF))),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12, color: Color(0xFF8B949E)))),
         ],
       ),
     );
