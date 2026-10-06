@@ -860,16 +860,25 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           const Divider(color: Color(0xFF1F2432), height: 1),
           const SizedBox(height: 14),
 
-          // 5 Menu Buttons on Side Pane
-          _buildSidebarNavButton(0, Icons.dns_rounded, 'Server & Addon', _serverTabFocus),
-          const SizedBox(height: 8),
-          _buildSidebarNavButton(1, Icons.movie_filter_rounded, 'Cinema & Series', _streamingTabFocus),
-          const SizedBox(height: 8),
-          _buildSidebarNavButton(2, Icons.live_tv_rounded, 'Live IPTV', _iptvTabFocus),
-          const SizedBox(height: 8),
-          _buildSidebarNavButton(3, Icons.bolt_rounded, 'Caching Queue', _cachingTabFocus),
-          const SizedBox(height: 8),
-          _buildSidebarNavButton(4, Icons.info_outline_rounded, 'About & Diagnostics', _aboutTabFocus),
+          // 5 Menu Buttons on Side Pane — scoped in FocusTraversalGroup so
+          // D-pad Up/Down stays inside the sidebar and doesn't bleed into body.
+          FocusTraversalGroup(
+            policy: OrderedTraversalPolicy(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSidebarNavButton(0, Icons.dns_rounded, 'Server & Addon', _serverTabFocus),
+                const SizedBox(height: 8),
+                _buildSidebarNavButton(1, Icons.movie_filter_rounded, 'Cinema & Series', _streamingTabFocus),
+                const SizedBox(height: 8),
+                _buildSidebarNavButton(2, Icons.live_tv_rounded, 'Live IPTV', _iptvTabFocus),
+                const SizedBox(height: 8),
+                _buildSidebarNavButton(3, Icons.bolt_rounded, 'Caching Queue', _cachingTabFocus),
+                const SizedBox(height: 8),
+                _buildSidebarNavButton(4, Icons.info_outline_rounded, 'About & Diagnostics', _aboutTabFocus),
+              ],
+            ),
+          ),
 
           const Spacer(),
 
@@ -2164,6 +2173,33 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Paste from clipboard',
+                child: Material(
+                  color: const Color(0xFF21262D),
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () async {
+                      final data = await Clipboard.getData(Clipboard.kTextPlain);
+                      final text = data?.text?.trim() ?? '';
+                      if (text.isNotEmpty) {
+                        controller.text = text;
+                        setState(() {});
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF30363D)),
+                      ),
+                      child: const Icon(Icons.content_paste_rounded, size: 18, color: Color(0xFF58A6FF)),
                     ),
                   ),
                 ),
@@ -3913,20 +3949,23 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     ? (width >= 900 ? 6 : 5)
                     : (width >= 550 ? 4 : (width < 340 ? 2 : 3));
 
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: cols,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.58,
+                return FocusTraversalGroup(
+                  policy: ReadingOrderTraversalPolicy(),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cols,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.58,
+                    ),
+                    itemCount: _catalogItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _catalogItems[index];
+                      return _buildCatalogCard(item, isWide: isWide);
+                    },
                   ),
-                  itemCount: _catalogItems.length,
-                  itemBuilder: (context, index) {
-                    final item = _catalogItems[index];
-                    return _buildCatalogCard(item, isWide: isWide);
-                  },
                 );
               },
             ),
@@ -4216,13 +4255,15 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             height: 38,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: seasons.length,
+               itemCount: seasons.length,
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 final sNum = seasons[index];
                 final isActive = (sNum == _selectedSeason);
-                return GestureDetector(
-                  onTap: () {
+                return _TvFocusableButton(
+                  isPrimary: isActive,
+                  primaryColor: const Color(0xFF195FEB),
+                  onPressed: () {
                     setState(() => _selectedSeason = sNum);
                   },
                   child: Container(
@@ -4260,8 +4301,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                 final thumb = ep['thumbnail']?.toString() ?? _seriesDetails!['poster']?.toString() ?? '';
                 final epNum = 'S${ep['season'] < 10 ? '0' : ''}${ep['season']}E${ep['episode'] < 10 ? '0' : ''}${ep['episode']}';
 
-                return GestureDetector(
-                  onTap: () {
+                return _TvFocusableButton(
+                  isPrimary: isSelected,
+                  primaryColor: const Color(0xFF195FEB),
+                  onPressed: () {
                     setState(() {
                       _selectedEpisodeId = epId;
                       _seasonController.text = ep['season'].toString();
@@ -4424,98 +4467,102 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
             final metaParts = metaItems.join(' • ');
 
-            return Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF11141C),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isCached
-                      ? const Color(0xFF238636)
-                      : (isCacheTag ? const Color(0xFF195FEB) : const Color(0xFF1F2432)),
-                  width: 1.2,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 1. Scene Filename Header
-                  Text(
-                    sceneFilename,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white, height: 1.25),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            return _TvFocusableButton(
+              // D-pad Enter/Select plays the stream directly
+              onPressed: () => _playStream(s),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF11141C),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isCached
+                        ? const Color(0xFF238636)
+                        : (isCacheTag ? const Color(0xFF195FEB) : const Color(0xFF1F2432)),
+                    width: 1.2,
                   ),
-                  const SizedBox(height: 7),
-
-                  // 2. Built-in Fusion Badges!
-                  _buildFusionBadgesRow(s),
-                  const SizedBox(height: 7),
-
-                  // 3. Source & Host metadata
-                  if (metaParts.isNotEmpty)
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Scene Filename Header
                     Text(
-                      metaParts,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade400, height: 1.2),
+                      sceneFilename,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white, height: 1.25),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  const SizedBox(height: 10),
+                    const SizedBox(height: 7),
 
-                  // 4. Action buttons
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF195FEB),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
-                        label: const Text('Play', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                        onPressed: () => _playStream(s),
+                    // 2. Built-in Fusion Badges!
+                    _buildFusionBadgesRow(s),
+                    const SizedBox(height: 7),
+
+                    // 3. Source & Host metadata
+                    if (metaParts.isNotEmpty)
+                      Text(
+                        metaParts,
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade400, height: 1.2),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          side: const BorderSide(color: Color(0xFF388BFD)),
-                          backgroundColor: const Color(0xFF161B22),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: const Icon(Icons.playlist_play_rounded, size: 16, color: Color(0xFF58A6FF)),
-                        label: const Text('Play With...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
-                        onPressed: () => _showPlayWithDialog(s),
-                      ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          side: const BorderSide(color: Color(0xFF30363D)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: const Icon(Icons.copy_rounded, size: 14, color: Colors.grey),
-                        label: const Text('Copy', style: TextStyle(fontSize: 12, color: Colors.white)),
-                        onPressed: () => _copyToClipboard(url, 'Stream URL'),
-                      ),
-                      if (isCachable)
+                    const SizedBox(height: 10),
+
+                    // 4. Action buttons (touch; D-pad Enter on card = Play)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF238636),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            backgroundColor: const Color(0xFF195FEB),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: Colors.white),
-                          label: Text(
-                            isCacheTag ? '⚡ Start Cache' : 'Cache to TorBox',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          onPressed: () => _startTorboxCache(underlying),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                          label: const Text('Play', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                          onPressed: () => _playStream(s),
                         ),
-                    ],
-                  ),
-                ],
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            side: const BorderSide(color: Color(0xFF388BFD)),
+                            backgroundColor: const Color(0xFF161B22),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.playlist_play_rounded, size: 16, color: Color(0xFF58A6FF)),
+                          label: const Text('Play With...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
+                          onPressed: () => _showPlayWithDialog(s),
+                        ),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            side: const BorderSide(color: Color(0xFF30363D)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(Icons.copy_rounded, size: 14, color: Colors.grey),
+                          label: const Text('Copy', style: TextStyle(fontSize: 12, color: Colors.white)),
+                          onPressed: () => _copyToClipboard(url, 'Stream URL'),
+                        ),
+                        if (isCachable)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF238636),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: Colors.white),
+                            label: Text(
+                              isCacheTag ? '⚡ Start Cache' : 'Cache to TorBox',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            onPressed: () => _startTorboxCache(underlying),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
