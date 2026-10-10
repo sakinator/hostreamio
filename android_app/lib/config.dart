@@ -42,6 +42,10 @@ class AddonConfig {
   bool enableCacheBypass = true; // Prowlarr-style Cache escape (no-cache headers + query nonce)
   bool enablePublicStreams = false; // By default OFF to prevent unverified public video/porn uploads
   String proxyResolverUrl = ''; // FlareSolverr / Proxy URL (e.g. http://localhost:8191/v1)
+  String preferredSubtitleLanguage = 'en'; // 'en', 'hi', 'es', 'fr', 'de', 'ar', 'pt', 'ru', 'ja', 'all'
+  Map<String, int> resumePositions = {}; // id/url -> position in ms
+  List<Map<String, dynamic>> watchlistItems = [];
+  List<Map<String, dynamic>> watchHistoryItems = [];
 
   static final File _configFile = File('data/config.json');
 
@@ -119,6 +123,25 @@ class AddonConfig {
         if (map['proxyResolverUrl'] is String) {
           proxyResolverUrl = map['proxyResolverUrl'];
         }
+        if (map['preferredSubtitleLanguage'] is String && (map['preferredSubtitleLanguage'] as String).isNotEmpty) {
+          preferredSubtitleLanguage = map['preferredSubtitleLanguage'];
+        }
+        if (map['resumePositions'] is Map) {
+          final resMap = map['resumePositions'] as Map;
+          resumePositions = resMap.map((k, v) => MapEntry(k.toString(), (v is num) ? v.toInt() : 0));
+        }
+        if (map['watchlistItems'] is List) {
+          watchlistItems = (map['watchlistItems'] as List)
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+        if (map['watchHistoryItems'] is List) {
+          watchHistoryItems = (map['watchHistoryItems'] as List)
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
       }
     } catch (e) {
       print('[AddonConfig] Error loading config: $e');
@@ -164,6 +187,10 @@ class AddonConfig {
         'enableCacheBypass': enableCacheBypass,
         'enablePublicStreams': enablePublicStreams,
         'proxyResolverUrl': proxyResolverUrl,
+        'preferredSubtitleLanguage': preferredSubtitleLanguage,
+        'resumePositions': resumePositions,
+        'watchlistItems': watchlistItems,
+        'watchHistoryItems': watchHistoryItems,
       };
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
       final tmpFile = File('${_configFile.path}.tmp');

@@ -123,6 +123,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
   // Stream Filtering Profiles & Optimization State
   String _selectedAudioLang = 'any';
+  String _selectedSubtitleLang = 'en';
   String _selectedMaxRes = 'all';
   bool _excludeCams = true;
   bool _enableDeduplication = true;
@@ -167,6 +168,18 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   List<Map<String, dynamic>> _catalogItems = [];
 
   static const Map<String, Map<String, dynamic>> _catalogDefs = {
+    'continue_watching': {
+      'label': '▶ Continue Watching',
+      'type': 'movie',
+      'src': 'local_history',
+      'id': 'continue_watching',
+    },
+    'my_watchlist': {
+      'label': '⭐ My Watchlist',
+      'type': 'movie',
+      'src': 'local_watchlist',
+      'id': 'my_watchlist',
+    },
     'trending-movie': {
       'label': '🔥 Trending Movies',
       'type': 'movie',
@@ -268,6 +281,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     _tvdbKeyController.text = cfg.tvdbApiKey;
     _dtddKeyController.text = cfg.dtddApiKey;
     _selectedAudioLang = cfg.preferredLanguage;
+    _selectedSubtitleLang = cfg.preferredSubtitleLanguage;
     _selectedMaxRes = cfg.maxResolution;
     _excludeCams = cfg.excludeCams;
     _enableDeduplication = cfg.enableDeduplication;
@@ -276,6 +290,9 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     _enableTorboxCachedTorrents = cfg.enableTorboxCachedTorrents;
     _enableCacheBypass = cfg.enableCacheBypass;
     _proxyResolverController.text = cfg.proxyResolverUrl;
+
+    _watchlist = List<Map<String, dynamic>>.from(cfg.watchlistItems);
+    _watchHistory = List<Map<String, dynamic>>.from(cfg.watchHistoryItems);
 
     // Preload default catalog
     _loadCatalog(reset: true);
@@ -2090,6 +2107,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   Future<void> _saveStreamFiltering() async {
     final cfg = AddonConfig.instance;
     cfg.preferredLanguage = _selectedAudioLang;
+    cfg.preferredSubtitleLanguage = _selectedSubtitleLang;
     cfg.maxResolution = _selectedMaxRes;
     cfg.excludeCams = _excludeCams;
     cfg.enableDeduplication = _enableDeduplication;
@@ -2622,6 +2640,44 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   ],
                   onChanged: (val) {
                     if (val != null) setState(() => _selectedAudioLang = val);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Preferred Subtitle Language
+          Row(
+            children: [
+              const Expanded(
+                child: Text('Preferred Subtitle Language:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1117),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF30363D)),
+                ),
+                child: DropdownButton<String>(
+                  value: _selectedSubtitleLang,
+                  dropdownColor: const Color(0xFF161B22),
+                  underline: const SizedBox(),
+                  style: const TextStyle(fontSize: 13, color: Colors.white),
+                  items: const [
+                    DropdownMenuItem(value: 'en', child: Text('🇬🇧 English')),
+                    DropdownMenuItem(value: 'hi', child: Text('🇮🇳 Hindi')),
+                    DropdownMenuItem(value: 'es', child: Text('🇪🇸 Spanish')),
+                    DropdownMenuItem(value: 'fr', child: Text('🇫🇷 French')),
+                    DropdownMenuItem(value: 'de', child: Text('🇩🇪 German')),
+                    DropdownMenuItem(value: 'ar', child: Text('🇸🇦 Arabic')),
+                    DropdownMenuItem(value: 'pt', child: Text('🇧🇷 Portuguese')),
+                    DropdownMenuItem(value: 'ru', child: Text('🇷🇺 Russian')),
+                    DropdownMenuItem(value: 'ja', child: Text('🇯🇵 Japanese')),
+                    DropdownMenuItem(value: 'all', child: Text('🌐 Any / First Available')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setState(() => _selectedSubtitleLang = val);
                   },
                 ),
               ),
@@ -3732,12 +3788,46 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (id.isNotEmpty)
+            if (id.isNotEmpty) ...[
+              _TvFocusableButton(
+                onPressed: () => _toggleWatchlist(meta),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _watchlist.any((w) => w['id'] == id) ? const Color(0xFF238636).withOpacity(0.2) : const Color(0xFF161B22),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _watchlist.any((w) => w['id'] == id) ? const Color(0xFF238636) : const Color(0xFF30363D),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _watchlist.any((w) => w['id'] == id) ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
+                        size: 15,
+                        color: _watchlist.any((w) => w['id'] == id) ? const Color(0xFF3FB950) : Colors.white70,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _watchlist.any((w) => w['id'] == id) ? 'In Watchlist' : 'Watchlist',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _watchlist.any((w) => w['id'] == id) ? const Color(0xFF3FB950) : Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
               IconButton(
                 icon: const Icon(Icons.copy_rounded, size: 18, color: Colors.grey),
                 tooltip: 'Copy ID',
                 onPressed: () => _copyToClipboard(id, 'Media ID'),
               ),
+            ],
           ],
         ),
         const SizedBox(height: 14),
@@ -4297,6 +4387,43 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       ),
                     ),
                   ),
+                if (_watchlist.any((w) => w['id'] == id))
+                  Positioned(
+                    top: 6,
+                    left: type == 'series' ? 56 : 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF238636).withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: const Icon(Icons.bookmark_rounded, size: 12, color: Colors.white),
+                    ),
+                  ),
+                // Playback progress indicator
+                Builder(
+                  builder: (_) {
+                    final savedMs = AddonConfig.instance.resumePositions[id] ??
+                        AddonConfig.instance.resumePositions[name] ?? 0;
+                    if (savedMs > 0) {
+                      return Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          height: 4,
+                          color: Colors.black45,
+                          child: const FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: 0.6, // Visual indicator that item is in-progress
+                            child: ColoredBox(color: Color(0xFFFF0C82)),
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
                 if (isSelected)
                   Container(
                     decoration: BoxDecoration(
@@ -4380,10 +4507,29 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       if (def == null) return;
 
       List<Map<String, dynamic>> items = [];
-      final isCinemeta = def['src'] == 'cinemeta';
+      final src = def['src'] as String? ?? '';
       final mediaType = def['type'] as String;
 
-      if (isCinemeta) {
+      if (src == 'local_history') {
+        items = _watchHistory.map((h) {
+          final meta = (h['meta'] is Map) ? Map<String, dynamic>.from(h['meta'] as Map) : <String, dynamic>{};
+          final id = meta['id']?.toString() ?? h['id']?.toString() ?? h['title']?.toString() ?? '';
+          final name = h['title']?.toString() ?? meta['name']?.toString() ?? 'Stream';
+          final poster = meta['poster']?.toString() ?? '';
+          return {
+            'id': id,
+            'type': meta['type']?.toString() ?? 'movie',
+            'name': name,
+            'poster': poster,
+            'year': meta['year']?.toString() ?? '',
+            'rating': meta['rating']?.toString() ?? '',
+            'description': meta['description']?.toString() ?? '',
+            'url': h['url'],
+          };
+        }).toList();
+      } else if (src == 'local_watchlist') {
+        items = List<Map<String, dynamic>>.from(_watchlist);
+      } else if (src == 'cinemeta') {
         final url = Uri.parse('https://v3-cinemeta.strem.io/catalog/$mediaType/top/skip=$_catalogSkip.json');
         final res = await http.get(url, headers: {'Accept': 'application/json'}).timeout(const Duration(seconds: 8));
         if (res.statusCode == 200) {
@@ -5164,8 +5310,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
   void _addToWatchHistory(Map<String, dynamic> entry) {
     setState(() {
-      // Remove existing entry with same URL to avoid duplicates
-      _watchHistory.removeWhere((h) => h['url'] == entry['url']);
+      // Remove existing entry with same URL or ID to avoid duplicates
+      _watchHistory.removeWhere((h) => h['url'] == entry['url'] || (h['id'] != null && h['id'] == entry['id']));
       // Insert at front (most recent first)
       _watchHistory.insert(0, entry);
       // Cap at 30 entries
@@ -5173,6 +5319,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         _watchHistory = _watchHistory.sublist(0, 30);
       }
     });
+    AddonConfig.instance.watchHistoryItems = _watchHistory;
+    AddonConfig.instance.scheduleSave();
   }
 
   void _toggleWatchlist(Map<String, dynamic> meta) {
@@ -5200,6 +5348,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         );
       }
     });
+    AddonConfig.instance.watchlistItems = _watchlist;
+    AddonConfig.instance.scheduleSave();
   }
 
   Future<void> _startTorboxCache(String url) async {
@@ -5309,6 +5459,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           'meta': _selectedMediaMeta,
         });
 
+        final mediaId = _selectedMediaMeta?['id']?.toString() ?? (isLive ? null : title);
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => PlayerScreen(
@@ -5319,11 +5470,25 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               onOpenExternal: () => _playStream(streamTarget, forceChooser: true, forceExternal: true, isLive: isLive),
               // Pass IMDb ID + type for auto subtitle fetching via OpenSubtitles (VOD only)
               imdbId: isLive ? null : _selectedMediaMeta?['id']?.toString(),
+              mediaId: mediaId,
               mediaType: isLive ? null : _selectedMediaType,
               isLive: isLive,
+              onPositionChanged: (posMs, durMs) {
+                if (mounted && _watchHistory.isNotEmpty) {
+                  final idx = _watchHistory.indexWhere((h) => h['url'] == playUrl);
+                  if (idx >= 0) {
+                    _watchHistory[idx]['position_ms'] = posMs;
+                    _watchHistory[idx]['duration_ms'] = durMs;
+                    AddonConfig.instance.watchHistoryItems = _watchHistory;
+                    AddonConfig.instance.scheduleSave();
+                  }
+                }
+              },
             ),
           ),
-        );
+        ).then((_) {
+          if (mounted) setState(() {});
+        });
         return;
       }
     }

@@ -7,6 +7,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'window_service.dart';
 import 'opensubtitles_service.dart';
+import 'config.dart';
 
 /// Full-featured, native in-app video player powered by libmpv via media_kit.
 /// Supports high-bitrate 4K Remuxes, HDR tonemapping, live IPTV streams (HLS/TS),
@@ -20,10 +21,14 @@ class PlayerScreen extends StatefulWidget {
   final VoidCallback? onOpenExternal;
   /// Optional IMDb ID (e.g. "tt1375666") for auto-subtitle fetching via OpenSubtitles
   final String? imdbId;
+  /// Unique media/stream ID or clean title for resume position tracking
+  final String? mediaId;
   /// "movie" or "series" — used for OpenSubtitles API query type
   final String? mediaType;
   /// Whether this stream is a live IPTV broadcast (true) or VOD movie/episode (false)
   final bool isLive;
+  /// Callback when player progress changes (for updating parent history)
+  final void Function(int positionMs, int durationMs)? onPositionChanged;
 
   const PlayerScreen({
     super.key,
@@ -33,8 +38,10 @@ class PlayerScreen extends StatefulWidget {
     this.headers,
     this.onOpenExternal,
     this.imdbId,
+    this.mediaId,
     this.mediaType,
     this.isLive = false,
+    this.onPositionChanged,
   });
 
   @override
@@ -88,6 +95,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   int? _selectedExternalSubIndex; // null = none loaded, -1 = off, ≥0 = index in _fetchedSubtitles
   bool _isLoadingSubtitles = false;
   bool _subtitleAutoLoaded = false;
+
+  // Smart Resume & Shortcut Help Overlay State
+  bool _hasResumed = false;
+  bool _showShortcutHelp = false;
+  int _lastSavedPositionSec = 0;
+
+  String get _resumeKey => widget.mediaId ?? widget.imdbId ?? widget.title;
 
   @override
   void initState() {
@@ -157,10 +171,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
             } else {
               setState(() => _position = pos);
             }
+
+            // Periodically save resume position (every ~5s) for VOD
+            if (!_isLiveStream && pos.inSeconds > 5) {
+              final sec = pos.inSeconds;
+              if ((sec - _lastSavedPositionSec).abs() >= 5) {
+                _lastSavedPositionSec = sec;
+                _saveResumePosition(pos.inMilliseconds);
+              }
+            }
           }
         }),
         _player.stream.duration.listen((dur) {
-          if (mounted) setState(() => _duration = dur);
+          if (mounted) {
+            setState(() => _duration = dur);
+            // Execute automatic resume if not already performed
+            if (!_isLiveStream && !_hasResumed && dur > const Duration(seconds: 30)) {
+              _attemptAutoResume(dur);
+            }
+          }
         }),
         _player.stream.buffer.listen((buf) {
           if (mounted) setState(() => _buffer = buf);
@@ -234,8 +263,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  void _saveResumePosition(int posMs) {
+    if (_isLiveStream || posMs <= 0) return;
+    final durMs = _duration.inMilliseconds;
+    // Don't save if finished (>95%)
+    if (durMs > 0 && posMs >= durMs * 0.95) {
+      AddonConfig.instance.resumePositions.remove(_resumeKey);
+    } else {
+      AddonConfig.instance.resumePositions[_resumeKey] = posMs;
+    }
+    AddonConfig.instance.scheduleSave();
+    if (widget.onPositionChanged != null) {
+      widget.onPositionChanged!(posMs, durMs);
+    }
+  }
+
+  void _attemptAutoResume(Duration dur) {
+    _hasResumed = true;
+    final savedMs = AddonConfig.instance.resumePositions[_resumeKey] ?? 0;
+    // Only resume if saved position is between 10 seconds and 95% of duration
+    if (savedMs >= 10000 && savedMs < dur.inMilliseconds * 0.95) {
+      final resumeDur = Duration(milliseconds: savedMs);
+      _player.seek(resumeDur);
+      _showHud('Resumed at ${_formatDuration(resumeDur)} (Press 0 to restart)');
+    }
+  }
+
   /// Fetches subtitles from OpenSubtitles v3 for the current media.
-  /// If [autoSelect] is true, automatically injects the best-matching English subtitle.
+  /// If [autoSelect] is true, injects subtitle according to user preference in AddonConfig.
   Future<void> _loadOpenSubtitles({bool autoSelect = false}) async {
     if (_isLoadingSubtitles) return;
     if (mounted) setState(() => _isLoadingSubtitles = true);
@@ -257,14 +312,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
       });
 
       if (autoSelect && subs.isNotEmpty && !_subtitleAutoLoaded) {
-        // Pick the best English sub first, then fall back to first available
-        final engSub = subs.firstWhere(
-          (s) => (s['lang']?.toString() ?? '').toLowerCase().contains('en'),
+        final prefLang = AddonConfig.instance.preferredSubtitleLanguage.toLowerCase();
+        // Priority 1: Match preferred subtitle language
+        Map<String, dynamic>? targetSub;
+        if (prefLang != 'all') {
+          targetSub = subs.cast<Map<String, dynamic>?>().firstWhere(
+            (s) {
+              final lang = (s?['lang']?.toString() ?? '').toLowerCase();
+              return lang.startsWith(prefLang) || lang.contains(prefLang);
+            },
+            orElse: () => null,
+          );
+        }
+
+        // Priority 2: Fall back to English
+        targetSub ??= subs.cast<Map<String, dynamic>?>().firstWhere(
+          (s) => (s?['lang']?.toString() ?? '').toLowerCase().contains('en'),
           orElse: () => subs.first,
         );
-        final idx = subs.indexOf(engSub);
-        await _loadExternalSubtitle(idx);
-        if (mounted) setState(() => _subtitleAutoLoaded = true);
+
+        if (targetSub != null) {
+          final idx = subs.indexOf(targetSub);
+          await _loadExternalSubtitle(idx);
+          if (mounted) setState(() => _subtitleAutoLoaded = true);
+        }
       }
     } catch (e) {
       debugPrint('[Subtitles] Error: $e');
@@ -663,7 +734,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _showControlsTemporarily();
 
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
+    if (_showShortcutHelp && (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.keyH || key == LogicalKeyboardKey.slash)) {
+      setState(() => _showShortcutHelp = false);
+      return;
+    }
+
+    if (key == LogicalKeyboardKey.keyH || key == LogicalKeyboardKey.slash) {
+      setState(() => _showShortcutHelp = !_showShortcutHelp);
+    } else if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter) {
       _player.playOrPause();
     } else if (key == LogicalKeyboardKey.keyF || key == LogicalKeyboardKey.f11) {
       WindowService.instance.toggleFullscreen();
@@ -675,8 +753,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _setVolumeWithGain(_volume + 5.0);
     } else if (key == LogicalKeyboardKey.arrowDown) {
       _setVolumeWithGain(_volume - 5.0);
+    } else if (key == LogicalKeyboardKey.keyD) {
+      _toggleDialogueBoost();
+    } else if (key == LogicalKeyboardKey.digit0 || key == LogicalKeyboardKey.numpad0) {
+      if (!_isLiveStream) {
+        _player.seek(Duration.zero);
+        _showHud('Restarted from beginning');
+      }
+    } else if (key == LogicalKeyboardKey.keyS) {
+      _showSubtitlesModal();
+    } else if (key == LogicalKeyboardKey.keyA) {
+      _showAudioTracksModal();
     } else if (key == LogicalKeyboardKey.escape) {
-      if (WindowService.instance.isFullscreen) {
+      if (_showShortcutHelp) {
+        setState(() => _showShortcutHelp = false);
+      } else if (WindowService.instance.isFullscreen) {
         WindowService.instance.exitFullscreen();
       } else {
         Navigator.of(context).maybePop();
@@ -1027,9 +1118,115 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   child: _buildControlsOverlay(),
                 ),
               ),
+
+              // Keyboard & Remote Shortcuts Help Overlay Modal
+              if (_showShortcutHelp)
+                _buildShortcutHelpModal(),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildShortcutHelpModal() {
+    return GestureDetector(
+      onTap: () => setState(() => _showShortcutHelp = false),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        color: Colors.black.withOpacity(0.85),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 580, maxHeight: 460),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161B22),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFF195FEB).withOpacity(0.6), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF195FEB).withOpacity(0.2),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.keyboard_rounded, color: Color(0xFF58A6FF), size: 24),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Keyboard & Remote Shortcuts',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.grey, size: 22),
+                    onPressed: () => setState(() => _showShortcutHelp = false),
+                    tooltip: 'Close (Esc / H)',
+                  ),
+                ],
+              ),
+              const Divider(color: Color(0xFF30363D), height: 20),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    _buildShortcutRow('Space / Enter / Select', 'Play or Pause playback'),
+                    _buildShortcutRow('← / → (Left / Right)', 'Seek backward / forward 10s'),
+                    _buildShortcutRow('↑ / ↓ (Up / Down)', 'Volume up / down (Boost up to 200%)'),
+                    _buildShortcutRow('D', 'Toggle Dialogue Normalization Booster'),
+                    _buildShortcutRow('S', 'Open Subtitles track selector modal'),
+                    _buildShortcutRow('A', 'Open Audio track selector modal'),
+                    _buildShortcutRow('0 (Digit 0)', 'Restart playback from beginning'),
+                    _buildShortcutRow('F / F11', 'Toggle Fullscreen mode'),
+                    _buildShortcutRow('H / ?', 'Toggle this shortcuts guide'),
+                    _buildShortcutRow('Esc / Back', 'Dismiss overlay / Exit video player'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShortcutRow(String keys, String action) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1117),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFF30363D)),
+            ),
+            child: Text(
+              keys,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF58A6FF),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              action,
+              style: const TextStyle(fontSize: 13, color: Colors.white70),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1100,6 +1297,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ],
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.help_outline_rounded, color: Colors.white70, size: 22),
+              tooltip: 'Keyboard & Remote Shortcuts (H / ?)',
+              onPressed: () {
+                setState(() => _showShortcutHelp = !_showShortcutHelp);
+              },
             ),
             if (widget.onOpenExternal != null)
               IconButton(
