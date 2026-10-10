@@ -761,9 +761,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _showHud('Restarted from beginning');
       }
     } else if (key == LogicalKeyboardKey.keyS) {
-      _showSubtitlesModal();
+      _showSubtitlePicker();
     } else if (key == LogicalKeyboardKey.keyA) {
-      _showAudioTracksModal();
+      _showAudioGainDialog();
     } else if (key == LogicalKeyboardKey.escape) {
       if (_showShortcutHelp) {
         setState(() => _showShortcutHelp = false);
