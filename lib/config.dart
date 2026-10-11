@@ -12,6 +12,7 @@ class AddonConfig {
   Set<String> disabledProviders = {};
   List<String> providerOrder = [];
   bool autoCheckUpdates = true;
+  String appVersion = '1.0.1';
 
   /// TMDB API key used by metadata_service.dart.
   /// Override in data/config.json with your own key if the default is rate-limited.

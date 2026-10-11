@@ -1346,7 +1346,7 @@ class WebUI {
       </div>
       <div class="sidebar-footer" onclick="toggleSidebar()" title="Click to Expand / Collapse Sidebar" style="cursor:pointer;">
         <div class="sidebar-status-dot"></div>
-        <span>v1.0.0 Ready</span>
+        <span>v${cfg.appVersion} Ready</span>
       </div>
     </aside>
 
