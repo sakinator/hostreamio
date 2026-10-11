@@ -16,6 +16,8 @@ $sourceFiles = @(
     "proxy_resolver.dart",
     "scraper_engine.dart",
     "scraper_registry.dart",
+    "stream_probe_service.dart",
+    "cloudflare_tunnel_service.dart",
     "torbox_service.dart",
     "tvdb_service.dart",
     "web_ui.dart"

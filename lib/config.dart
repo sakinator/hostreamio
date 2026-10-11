@@ -12,7 +12,7 @@ class AddonConfig {
   Set<String> disabledProviders = {};
   List<String> providerOrder = [];
   bool autoCheckUpdates = true;
-  String appVersion = '1.0.2';
+  String appVersion = '1.0.3';
 
   /// TMDB API key used by metadata_service.dart.
   /// Override in data/config.json with your own key if the default is rate-limited.
@@ -37,6 +37,7 @@ class AddonConfig {
   String preferredLanguage = 'any'; // 'any', 'hindi', 'english', 'tamil', 'telugu', 'malayalam', 'kannada', 'bengali', 'punjabi', 'dual'
   bool enableDeduplication = true;
   bool enableDeadLinkFilter = true;
+  bool enableSeekProbe = true; // CNCVerse-style Range & exact Content-Length size extraction
   bool showRatingsInStreams = false;
   bool enableOpenSubtitles = true;
   bool enableTorboxCachedTorrents = true; // By default ON (Fetch 100% TorBox cached torrents, strictly 0 P2P)
@@ -44,6 +45,8 @@ class AddonConfig {
   bool enablePublicStreams = false; // By default OFF to prevent unverified public video/porn uploads
   String proxyResolverUrl = ''; // FlareSolverr / Proxy URL (e.g. http://localhost:8191/v1)
   String preferredSubtitleLanguage = 'en'; // 'en', 'hi', 'es', 'fr', 'de', 'ar', 'pt', 'ru', 'ja', 'all'
+  String cloudflareTunnelToken = ''; // Cloudflare Tunnel token for remote HTTPS access
+  bool enableCloudflareTunnel = false;
   Map<String, int> resumePositions = {}; // id/url -> position in ms
   List<Map<String, dynamic>> watchlistItems = [];
   List<Map<String, dynamic>> watchHistoryItems = [];
@@ -109,8 +112,17 @@ class AddonConfig {
         if (map['enableDeadLinkFilter'] is bool) {
           enableDeadLinkFilter = map['enableDeadLinkFilter'];
         }
+        if (map['enableSeekProbe'] is bool) {
+          enableSeekProbe = map['enableSeekProbe'];
+        }
         if (map['enableOpenSubtitles'] is bool) {
           enableOpenSubtitles = map['enableOpenSubtitles'];
+        }
+        if (map['cloudflareTunnelToken'] is String) {
+          cloudflareTunnelToken = map['cloudflareTunnelToken'];
+        }
+        if (map['enableCloudflareTunnel'] is bool) {
+          enableCloudflareTunnel = map['enableCloudflareTunnel'];
         }
         if (map['enableTorboxCachedTorrents'] is bool) {
           enableTorboxCachedTorrents = map['enableTorboxCachedTorrents'];
@@ -183,7 +195,10 @@ class AddonConfig {
         'preferredLanguage': preferredLanguage,
         'enableDeduplication': enableDeduplication,
         'enableDeadLinkFilter': enableDeadLinkFilter,
+        'enableSeekProbe': enableSeekProbe,
         'enableOpenSubtitles': enableOpenSubtitles,
+        'cloudflareTunnelToken': cloudflareTunnelToken,
+        'enableCloudflareTunnel': enableCloudflareTunnel,
         'enableTorboxCachedTorrents': enableTorboxCachedTorrents,
         'enableCacheBypass': enableCacheBypass,
         'enablePublicStreams': enablePublicStreams,

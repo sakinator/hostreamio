@@ -12,6 +12,7 @@ import 'upstream/services/scraper/sites/bollyflix.dart';
 import 'upstream/services/scraper/sites/cinejoy.dart';
 import 'upstream/services/scraper/sites/cinesrc.dart';
 import 'upstream/services/scraper/sites/cinesu.dart';
+import 'upstream/services/scraper/sites/coolmovies.dart';
 import 'upstream/services/scraper/sites/downloadeverything.dart';
 import 'upstream/services/scraper/sites/dramacool.dart';
 import 'upstream/services/scraper/sites/dramaday.dart';
@@ -85,6 +86,7 @@ class ScraperRegistry {
     CinejoyScraper(),
     CineSrcScraper(),
     CineSuScraper(),
+    CoolMoviesScraper(),
     DownloadEverythingScraper(),
     DramacoolScraper(),
     DramaDayScraper(),

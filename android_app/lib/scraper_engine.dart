@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'scraper_registry.dart';
 import 'config.dart';
 import 'metadata_service.dart';
@@ -9,6 +8,7 @@ import 'upstream/services/scraper/stream_scraper.dart';
 import 'badge_service.dart';
 import 'torbox_service.dart';
 import 'opensubtitles_service.dart';
+import 'stream_probe_service.dart';
 
 class _CachedScrape {
   final List<ScrapedStream> streams;
@@ -77,9 +77,6 @@ class ScraperEngine {
   /// Circuit Breaker: maps providerId to expiration of tripped state
   final Map<String, DateTime> _trippedUntil = {};
 
-  static final HttpClient _probeClient = HttpClient()
-    ..connectionTimeout = const Duration(milliseconds: 1200)
-    ..badCertificateCallback = ((_, __, ___) => true);
 
   ScraperEngine._() {
     _initScrapers();
@@ -298,24 +295,34 @@ class ScraperEngine {
         ? await TorboxService.instance.checkCachedTorrentsBatch(torrentHashToSources.keys.toList(), torboxKey)
         : <String, bool>{};
 
-    // ── Dead-Link Filter: Quick concurrent HEAD probe on direct stream URLs ──
+    // ── Stream Probe & Dead-Link Filter: Quick concurrent probe on direct stream URLs ──
     final deadUrls = <String>{};
-    if (cfg.enableDeadLinkFilter) {
+    final probedSizeMap = <String, String>{};
+    final probedTypeMap = <String, String>{};
+
+    if (cfg.enableDeadLinkFilter || cfg.enableSeekProbe) {
       final probeCandidates = <String>[];
       for (final src in rawResults) {
         final rawUrl = src.url ?? src.externalUrl;
         if (rawUrl != null &&
             rawUrl.startsWith('http') &&
-            !rawUrl.contains('.m3u8') &&
-            !rawUrl.contains('.mpd') &&
             torboxCacheMap[rawUrl] != true) {
           probeCandidates.add(rawUrl);
         }
       }
       if (probeCandidates.isNotEmpty) {
-        final probeFutures = probeCandidates.take(25).map((url) async {
-          final isAlive = await _probeDirectLink(url);
-          if (!isAlive) deadUrls.add(url);
+        final probeFutures = probeCandidates.take(30).map((url) async {
+          final probeRes = await StreamProbeService.instance.probeStream(url);
+          if (!probeRes.isPlayable) {
+            deadUrls.add(url);
+          } else {
+            if (probeRes.fileSizeFormatted != null && probeRes.fileSizeFormatted!.isNotEmpty) {
+              probedSizeMap[url] = probeRes.fileSizeFormatted!;
+            }
+            if (probeRes.detectedFileType != null && probeRes.detectedFileType!.isNotEmpty) {
+              probedTypeMap[url] = probeRes.detectedFileType!;
+            }
+          }
         });
         await Future.wait(probeFutures);
       }
@@ -470,6 +477,13 @@ class ScraperEngine {
         directBehaviorHints['proxyHeaders'] = {'request': headers};
       }
 
+      final probedSize = probedSizeMap[rawUrl];
+      final probedType = probedTypeMap[rawUrl];
+      final effectiveFileSize = (src.fileSize != null && src.fileSize!.isNotEmpty)
+          ? src.fileSize
+          : probedSize;
+      final isProbedMedia = probedType != null || probedSize != null;
+
       String rawTitle = src.title ?? src.name ?? meta.title;
       rawTitle = rawTitle
           .replaceAll(RegExp(r'PlayTorrio(HTTP)?|MegaScraper|Unbound|HostHound', caseSensitive: false), 'Hostreamio')
@@ -485,7 +499,7 @@ class ScraperEngine {
         quality: q,
         codec: src.codec,
         audioBadge: badge,
-        fileSize: src.fileSize,
+        fileSize: effectiveFileSize,
         providerName: sourceName,
         sourceName: sourceName,
         siteDomain: siteDomain,
@@ -522,7 +536,7 @@ class ScraperEngine {
           quality: q,
           codec: src.codec,
           audioBadge: badge,
-          fileSize: src.fileSize,
+          fileSize: effectiveFileSize,
           providerName: '$sourceName (TorBox Cached)',
           sourceName: sourceName,
           siteDomain: siteDomain,
@@ -541,14 +555,14 @@ class ScraperEngine {
           behaviorHints: const {'notWebReady': false},
           provider: '$sourceName ($cachedHost)',
           site: siteDomain,
-          fileType: cachedEnriched['fileType'],
+          fileType: cachedEnriched['fileType'] ?? probedType,
           quality: q,
-          fileSize: cachedEnriched['fileSize'],
+          fileSize: cachedEnriched['fileSize'] ?? effectiveFileSize,
           subtitles: subList,
         );
         finalStreams.add(cachedStream);
 
-        final isDirectPlayable = isDirectPlayableUrl(rawUrl);
+        final isDirectPlayable = isDirectPlayableUrl(rawUrl, isProbed: isProbedMedia);
         if (isDirectPlayable) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final directStream = ScrapedStream(
@@ -558,9 +572,9 @@ class ScraperEngine {
             behaviorHints: directBehaviorHints,
             provider: sourceName,
             site: siteDomain,
-            fileType: directEnriched['fileType'],
+            fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
-            fileSize: directEnriched['fileSize'],
+            fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -579,7 +593,7 @@ class ScraperEngine {
           quality: q,
           codec: src.codec,
           audioBadge: badge,
-          fileSize: src.fileSize,
+          fileSize: effectiveFileSize,
           providerName: sourceName,
           sourceName: sourceName,
           siteDomain: siteDomain,
@@ -598,16 +612,16 @@ class ScraperEngine {
           behaviorHints: const {'notWebReady': false},
           provider: '$sourceName ($hostName)',
           site: siteDomain,
-          fileType: cacheEnriched['fileType'],
+          fileType: cacheEnriched['fileType'] ?? probedType,
           quality: q,
-          fileSize: cacheEnriched['fileSize'],
+          fileSize: cacheEnriched['fileSize'] ?? effectiveFileSize,
           subtitles: subList,
         );
         finalStreams.add(startCachingStream);
         streamDedupeMap[rawUrl] = startCachingStream;
 
         // ONLY add direct stream if rawUrl is actually a playable video container/stream!
-        if (isDirectPlayableUrl(rawUrl)) {
+        if (isDirectPlayableUrl(rawUrl, isProbed: isProbedMedia)) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final directStream = ScrapedStream(
             name: '🌐 Play Original [$sourceName]\n$directBadge',
@@ -616,9 +630,9 @@ class ScraperEngine {
             behaviorHints: directBehaviorHints,
             provider: sourceName,
             site: siteDomain,
-            fileType: directEnriched['fileType'],
+            fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
-            fileSize: directEnriched['fileSize'],
+            fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -626,7 +640,7 @@ class ScraperEngine {
       } else if (isHosterOffline) {
         // ── 3. Hoster is recognized by TorBox but currently OFFLINE on TorBox ──
         // Do NOT offer "Start Caching" (it will fail). Offer direct play if playable, with offline notice!
-        if (isDirectPlayableUrl(rawUrl)) {
+        if (isDirectPlayableUrl(rawUrl, isProbed: isProbedMedia)) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final offlineName = offlineHosterName.isNotEmpty ? offlineHosterName : hostName;
           final directStream = ScrapedStream(
@@ -636,9 +650,9 @@ class ScraperEngine {
             behaviorHints: directBehaviorHints,
             provider: sourceName,
             site: siteDomain,
-            fileType: directEnriched['fileType'],
+            fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
-            fileSize: directEnriched['fileSize'],
+            fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -647,7 +661,7 @@ class ScraperEngine {
       } else {
         // ── 4. Standard Non-Hoster / Direct Stream (1 link) ──
         // Validate that this link is actually a playable stream rather than an unparsed website/blog URL!
-        if (isDirectPlayableUrl(rawUrl)) {
+        if (isDirectPlayableUrl(rawUrl, isProbed: isProbedMedia)) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final directStream = ScrapedStream(
             name: '🌐 Direct Play [$sourceName]\n$directBadge',
@@ -656,9 +670,9 @@ class ScraperEngine {
             behaviorHints: directBehaviorHints,
             provider: sourceName,
             site: siteDomain,
-            fileType: directEnriched['fileType'],
+            fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
-            fileSize: directEnriched['fileSize'],
+            fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -709,7 +723,13 @@ class ScraperEngine {
     return finalStreams;
   }
 
-  static bool isDirectPlayableUrl(String url) {
+  static bool isDirectPlayableUrl(String url, {bool isProbed = false}) {
+    if (url.isEmpty) return false;
+    // 0. Archives (.zip, .rar, .7z) are NEVER playable directly in video players
+    if (StreamProbeService.isArchiveUrl(url)) return false;
+    // If successfully probed and verified by StreamProbeService
+    if (isProbed) return true;
+
     final lower = url.toLowerCase();
     // 1. Definite media containers & manifests
     if (lower.contains('.m3u8') ||
@@ -1076,21 +1096,7 @@ class ScraperEngine {
   }
 
 
-  static Future<bool> _probeDirectLink(String url) async {
-    try {
-      final uri = Uri.parse(url);
-      final req = await _probeClient.headUrl(uri).timeout(const Duration(milliseconds: 1200));
-      final res = await req.close().timeout(const Duration(milliseconds: 1200));
-      await res.drain<void>();
-      if (res.statusCode == 404 || res.statusCode == 410) {
-        return false;
-      }
-      return true;
-    } catch (_) {
-      // If HEAD is blocked or timed out, assume alive rather than false-positive dropping
-      return true;
-    }
-  }
+
 
   static int _streamRank(ScrapedStream s, String prefLang) {
     int rank = _qualityRank(s.quality) * 10;
