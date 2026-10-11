@@ -531,8 +531,8 @@ class ScraperEngine {
         if (isDirectPlayable) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final directStream = ScrapedStream(
-            name: '🌐 Direct Play [$sourceName]\n$directBadge',
-            title: '${directEnriched['title']}\n🌐 Direct Play • Original Hoster Link',
+            name: '🌐 Play Original [$sourceName]\n$directBadge',
+            title: '${directEnriched['title']}\n🌐 Play Original • Direct Hoster Link',
             url: directStreamUrl,
             behaviorHints: directBehaviorHints,
             provider: sourceName,
@@ -543,7 +543,7 @@ class ScraperEngine {
           finalStreams.add(directStream);
         }
       } else if (isSupportedHoster) {
-        // ── 2. Link is NOT cached but IS cachable: show TorBox Start Caching (and Direct Play only if truly playable) ──
+        // ── 2. Link is NOT cached but IS cachable: show TorBox Click to Cache Link (and Play Original only if truly playable) ──
         final headersParam = headers.isNotEmpty ? '&headers=${Uri.encodeComponent(jsonEncode(headers))}' : '';
         final cachePlayUrl = '$localBaseUrl/torbox/play?url=${Uri.encodeComponent(rawUrl)}$headersParam';
 
@@ -568,8 +568,8 @@ class ScraperEngine {
 
         final cacheBadge = cacheEnriched['badgeHeader'] ?? qLabel;
         final startCachingStream = ScrapedStream(
-          name: '☁️ TorBox [Start Caching] • $hostName\n$cacheBadge',
-          title: '${cacheEnriched['title']}\n☁️ Click to cache on TorBox cloud & stream',
+          name: '☁️ TorBox [Click to Cache Link] • $hostName\n$cacheBadge',
+          title: '${cacheEnriched['title']}\n☁️ Click to cache link on TorBox cloud & stream',
           url: cachePlayUrl,
           behaviorHints: const {'notWebReady': false},
           provider: '$sourceName ($hostName)',
@@ -584,8 +584,8 @@ class ScraperEngine {
         if (isDirectPlayableUrl(rawUrl)) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final directStream = ScrapedStream(
-            name: '🌐 Direct Play [$sourceName]\n$directBadge',
-            title: '${directEnriched['title']}\n🌐 Direct Play • Original Hoster Link',
+            name: '🌐 Play Original [$sourceName]\n$directBadge',
+            title: '${directEnriched['title']}\n🌐 Play Original • Direct Hoster Link',
             url: directStreamUrl,
             behaviorHints: directBehaviorHints,
             provider: sourceName,

@@ -4791,6 +4791,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             final isCached = s['isCached'] == true;
             final isCacheTag = s['isCache'] == true;
 
+            final torboxPlayUrl = s['torboxUrl']?.toString() ?? (isCached ? url : '');
+            final directPlayUrl = s['directUrl']?.toString() ?? (!url.contains('/torbox/play') ? url : underlying);
+            final hasDirectLink = directPlayUrl.isNotEmpty;
+
             // Extract scene filename and extra source/host metadata cleanly
             final rawLines = title.split(RegExp(r'[\r\n]+')).map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
             final sceneFilename = rawLines.isNotEmpty
@@ -4873,16 +4877,65 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF195FEB),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        if (isCached) ...[
+                          // ⚡ Cached Stream: TorBox button (primary) + Play Original button
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF238636),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.bolt_rounded, size: 16, color: Colors.white),
+                            label: const Text('Play with TorBox', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                            onPressed: () {
+                              final playObj = Map<String, dynamic>.from(s);
+                              if (torboxPlayUrl.isNotEmpty) playObj['finalUrl'] = torboxPlayUrl;
+                              _playStream(playObj);
+                            },
                           ),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
-                          label: const Text('Play', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                          onPressed: () => _playStream(s),
-                        ),
+                          if (hasDirectLink)
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                side: const BorderSide(color: Color(0xFF388BFD)),
+                                backgroundColor: const Color(0xFF161B22),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.public_rounded, size: 15, color: Color(0xFF58A6FF)),
+                              label: const Text('Play Original', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
+                              onPressed: () {
+                                final playObj = Map<String, dynamic>.from(s);
+                                playObj['finalUrl'] = directPlayUrl;
+                                _playStream(playObj);
+                              },
+                            ),
+                        ] else ...[
+                          // Non-Cached Stream: Play Original (primary) + Cache to TorBox button
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF195FEB),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                            label: const Text('Play Original', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                            onPressed: () => _playStream(s),
+                          ),
+                          if (isCachable)
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF238636),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: Colors.white),
+                              label: const Text(
+                                'Cache to TorBox',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                              onPressed: () => _startTorboxCache(underlying),
+                            ),
+                        ],
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -4904,20 +4957,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                           label: const Text('Copy', style: TextStyle(fontSize: 12, color: Colors.white)),
                           onPressed: () => _copyToClipboard(url, 'Stream URL'),
                         ),
-                        if (isCachable)
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF238636),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: Colors.white),
-                            label: Text(
-                              isCacheTag ? '⚡ Start Cache' : 'Cache to TorBox',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                            onPressed: () => _startTorboxCache(underlying),
-                          ),
                       ],
                     ),
                   ],
@@ -5229,8 +5268,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         final data = jsonDecode(res.body);
         final rawList = (data is Map && data['streams'] is List) ? data['streams'] as List : [];
 
-        final parsed = rawList.map((s) {
-          final m = Map<String, dynamic>.from(s as Map);
+        // Unify and group streams by underlying source so each file displays as a single card!
+        final groupedMap = <String, Map<String, dynamic>>{};
+        for (final item in rawList) {
+          if (item is! Map) continue;
+          final m = Map<String, dynamic>.from(item);
           final rawName = (m['name']?.toString() ?? '').replaceAll('\n', ' ');
           final rawTitle = (m['title']?.toString() ?? '').replaceAll('\n', ' • ');
           final rawUrl = m['url']?.toString() ?? '';
@@ -5246,10 +5288,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
           final lower = underlying.toLowerCase();
           final isHls = lower.contains('.m3u8') || lower.contains('.mpd');
-          final isCached = rawName.contains('[Cached]') || rawTitle.contains('Cached on TorBox');
-          final isCachableTag = rawName.toLowerCase().contains('cachable') || rawName.contains('Start Caching') || rawTitle.toLowerCase().contains('cachable');
+          final isCached = rawName.contains('[Cached]') || rawTitle.contains('Cached on TorBox') || rawName.contains('⚡');
+          final isCachableTag = rawName.toLowerCase().contains('cachable') || rawName.contains('Click to Cache') || rawName.contains('Start Caching') || rawTitle.toLowerCase().contains('cachable');
 
-          final isHosterSupported = !isHls && !isCached && (
+          final isHosterSupported = !isHls && (
             isCachableTag ||
             lower.endsWith('.mp4') || lower.endsWith('.mkv') || lower.endsWith('.avi') || lower.endsWith('.webm') || lower.endsWith('.ts') ||
             lower.contains('hubcloud') || lower.contains('hubdrive') || lower.contains('driveseed') ||
@@ -5258,17 +5300,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             lower.contains('drive.google.com') || lower.contains('workers.dev') || lower.contains('vcloud')
           );
 
-          m['cleanName'] = rawName;
-          m['cleanTitle'] = rawTitle;
-          m['finalUrl'] = rawUrl;
-          m['underlyingUrl'] = underlying;
-          m['isCached'] = isCached;
-          m['isCache'] = isCachableTag;
-          m['isCachableToTorbox'] = isHosterSupported;
           final is4K = rawName.contains('4K') || rawTitle.contains('[4K]') || rawTitle.contains('2160p');
           final is1080p = rawName.contains('1080p') || rawTitle.contains('[FHD]') || rawTitle.contains('1080p');
-          m['is4K'] = is4K;
-          m['is1080p'] = is1080p;
 
           // Extract or estimate fileSize
           String rawFileSize = m['fileSize']?.toString() ?? '';
@@ -5287,9 +5320,50 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               rawFileSize = _selectedMediaType == 'series' ? '300 MB' : '650 MB';
             }
           }
-          m['fileSize'] = rawFileSize;
-          return m;
-        }).toList();
+
+          // Use underlying URL as key to unify TorBox + Original links into a single card
+          final groupKey = underlying.isNotEmpty ? underlying : rawUrl;
+          if (!groupedMap.containsKey(groupKey)) {
+            m['cleanName'] = rawName;
+            m['cleanTitle'] = rawTitle;
+            m['finalUrl'] = rawUrl;
+            m['underlyingUrl'] = underlying;
+            m['isCached'] = isCached;
+            m['isCache'] = isCachableTag;
+            m['isCachableToTorbox'] = isHosterSupported;
+            m['is4K'] = is4K;
+            m['is1080p'] = is1080p;
+            m['fileSize'] = rawFileSize;
+            if (rawUrl.contains('/torbox/play')) {
+              m['torboxUrl'] = rawUrl;
+            } else {
+              m['directUrl'] = rawUrl;
+            }
+            groupedMap[groupKey] = m;
+          } else {
+            // Merge with existing card
+            final existing = groupedMap[groupKey]!;
+            if (isCached) existing['isCached'] = true;
+            if (isCachableTag) existing['isCache'] = true;
+            if (isHosterSupported) existing['isCachableToTorbox'] = true;
+            if (is4K) existing['is4K'] = true;
+            if (is1080p) existing['is1080p'] = true;
+            if ((existing['fileSize']?.toString() ?? '').isEmpty && rawFileSize.isNotEmpty) {
+              existing['fileSize'] = rawFileSize;
+            }
+            if (rawUrl.contains('/torbox/play')) {
+              existing['torboxUrl'] = rawUrl;
+              // If current primary URL was not TorBox, prefer TorBox as primary if cached
+              if (isCached) {
+                existing['finalUrl'] = rawUrl;
+              }
+            } else {
+              existing['directUrl'] = rawUrl;
+            }
+          }
+        }
+
+        final parsed = groupedMap.values.toList();
 
         if (mounted) {
           setState(() {

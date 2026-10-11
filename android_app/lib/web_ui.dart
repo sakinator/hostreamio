@@ -3705,7 +3705,9 @@ class WebUI {
         const data = await res.json();
         const rawStreams = data.streams || [];
 
-        modalScrapedStreams = rawStreams.map((s, idx) => {
+        // Unify and group streams by underlying source so each file displays as a single card!
+        const groupedMap = {};
+        rawStreams.forEach((s, idx) => {
           const finalUrl = normalizeStreamUrl(s.url);
           const rawName = (s.name || '').replace(/\\n/g, ' ');
           const rawTitle = (s.title || '').replace(/\\n/g, '\\n');
@@ -3720,22 +3722,41 @@ class WebUI {
 
           const hosterInfo = checkUrlHosterStatus(underlyingUrl);
           const isHosterOffline = (hosterInfo.isSupported && !hosterInfo.isOnline) || rawName.includes('Offline') || rawTitle.includes('Offline');
+          const isTorboxCached = rawName.includes('Cached') || rawTitle.includes('Cached') || rawName.includes('⚡') || rawTitle.includes('⚡');
+          const isTorboxCaching = !isHosterOffline && (rawName.includes('Click to Cache') || rawName.includes('Start Caching') || rawName.includes('☁️'));
 
-          return {
-            idx: idx,
-            name: rawName,
-            title: rawTitle,
-            url: finalUrl,
-            underlyingUrl: underlyingUrl,
-            hosterName: hosterInfo.name,
-            isHosterOffline: isHosterOffline,
-            isTorboxCached: rawName.includes('Cached') || rawTitle.includes('Cached') || rawName.includes('⚡') || rawTitle.includes('⚡'),
-            isTorboxCaching: !isHosterOffline && (rawName.includes('Start Caching') || rawTitle.includes('Start Caching') || rawName.includes('☁️')),
-            isDirect: !rawName.includes('TorBox') && !rawTitle.includes('TorBox'),
-            is1080p: /1080p|2160p|4k/i.test(rawName + ' ' + rawTitle),
-            is4k: /2160p|4k/i.test(rawName + ' ' + rawTitle)
-          };
+          const groupKey = underlyingUrl || finalUrl;
+          if (!groupedMap[groupKey]) {
+            groupedMap[groupKey] = {
+              idx: Object.keys(groupedMap).length,
+              name: rawName,
+              title: rawTitle,
+              url: finalUrl,
+              underlyingUrl: underlyingUrl,
+              torboxUrl: finalUrl.includes('/torbox/play') ? finalUrl : '',
+              directUrl: !finalUrl.includes('/torbox/play') ? finalUrl : '',
+              hosterName: hosterInfo.name,
+              isHosterOffline: isHosterOffline,
+              isTorboxCached: isTorboxCached,
+              isTorboxCaching: isTorboxCaching,
+              isDirect: !rawName.includes('TorBox') && !rawTitle.includes('TorBox'),
+              is1080p: /1080p|2160p|4k/i.test(rawName + ' ' + rawTitle),
+              is4k: /2160p|4k/i.test(rawName + ' ' + rawTitle)
+            };
+          } else {
+            const existing = groupedMap[groupKey];
+            if (isTorboxCached) existing.isTorboxCached = true;
+            if (isTorboxCaching) existing.isTorboxCaching = true;
+            if (finalUrl.includes('/torbox/play')) {
+              existing.torboxUrl = finalUrl;
+              if (isTorboxCached) existing.url = finalUrl;
+            } else {
+              existing.directUrl = finalUrl;
+            }
+          }
         });
+
+        modalScrapedStreams = Object.values(groupedMap);
 
         if (streamsCount) streamsCount.textContent = modalScrapedStreams.length;
         renderModalStreams(modalScrapedStreams);
@@ -3786,7 +3807,7 @@ class WebUI {
           const hName = s.hosterName || 'Hoster';
           badgeHtml = '<span class="badge" style="background:rgba(248, 81, 73, 0.15); color:#f85149; border:1px solid rgba(248, 81, 73, 0.3); font-weight:700;">⚠️ TorBox: ' + escapeHtml(hName) + ' Offline</span>';
         } else if (s.isTorboxCaching) {
-          badgeHtml = '<span class="badge" style="background:rgba(88, 166, 255, 0.15); color:#58a6ff; border:1px solid rgba(88, 166, 255, 0.3); font-weight:700;">☁️ TorBox [Start Caching]</span>';
+          badgeHtml = '<span class="badge" style="background:rgba(88, 166, 255, 0.15); color:#58a6ff; border:1px solid rgba(88, 166, 255, 0.3); font-weight:700;">☁️ TorBox [Click to Cache]</span>';
         } else {
           badgeHtml = '<span class="badge" style="background:rgba(240, 136, 62, 0.15); color:#f0883e; border:1px solid rgba(240, 136, 62, 0.3); font-weight:700;">🌐 Direct Play</span>';
         }
@@ -3796,7 +3817,21 @@ class WebUI {
         const mainTitle = nlIdx !== -1 ? rawTitle.substring(0, nlIdx) : rawTitle;
         const subDetails = nlIdx !== -1 ? rawTitle.substring(nlIdx + 1).split('\\n').join(' • ') : '';
 
-        return '<div class="modal-stream-card" style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">' +
+        // Unified action buttons:
+        // Cached: [⚡ Play with TorBox] [🌐 Play Original]
+        // Non-cached: [🌐 Play Original] [☁️ Cache to TorBox]
+        let playButtonsHtml = '';
+        if (s.isTorboxCached) {
+          playButtonsHtml += '<button class="btn btn-sm btn-success" style="padding:6px 12px; font-weight:700;" onclick="playModalTorboxIdx(' + idx + ')">⚡ Play with TorBox</button>';
+          if (s.directUrl) {
+            playButtonsHtml += '<button class="btn btn-sm" style="padding:6px 10px; border-color:#388bfd; color:#58a6ff;" onclick="playModalDirectIdx(' + idx + ')">🌐 Play Original</button>';
+          }
+        } else {
+          playButtonsHtml += '<button class="btn btn-sm btn-primary" style="padding:6px 12px; font-weight:700;" onclick="playModalStreamIdx(' + idx + ')">🌐 Play Original</button>';
+          playButtonsHtml += '<button class="btn btn-sm btn-success" style="padding:6px 10px; font-weight:700; background:rgba(63, 185, 80, 0.2); color:#3fb950; border-color:#238636;" onclick="cacheModalStreamIdx(' + idx + ')">☁️ Cache to TorBox</button>';
+        }
+
+        return '<div class="modal-stream-card" style="background:#161b22; border:1px solid ' + (s.isTorboxCached ? '#238636' : '#30363d') + '; border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">' +
           '<div style="flex:1; min-width:200px;">' +
             '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">' +
               badgeHtml +
@@ -3806,10 +3841,9 @@ class WebUI {
             (subDetails ? '<div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">' + escapeHtml(subDetails) + '</div>' : '') +
           '</div>' +
           '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">' +
-            '<button class="btn btn-sm btn-success" style="padding:6px 12px; font-weight:700;" onclick="playModalStreamIdx(' + idx + ')">▶ Play</button>' +
+            playButtonsHtml +
             '<button class="btn btn-sm" style="padding:6px 10px;" onclick="openWithModalStreamIdx(' + idx + ')">🚀 External</button>' +
             '<button class="btn btn-sm" style="padding:6px 8px;" onclick="copyModalStreamIdx(' + idx + ')" title="Copy Stream URL">📋</button>' +
-            (s.isTorboxCaching ? '<button class="btn btn-sm" style="padding:6px 8px; background:rgba(88,166,255,0.15); color:#58a6ff;" onclick="cacheModalStreamIdx(' + idx + ')" title="Send to TorBox Cache">☁️ Cache</button>' : '') +
           '</div>' +
         '</div>';
       }).join('');
@@ -3819,6 +3853,20 @@ class WebUI {
       const s = modalScrapedStreams[idx];
       if (!s || !s.url) return;
       playStream(s.url, s.title || s.name);
+    }
+
+    function playModalTorboxIdx(idx) {
+      const s = modalScrapedStreams[idx];
+      if (!s) return;
+      const targetUrl = s.torboxUrl || s.url;
+      playStream(targetUrl, s.title || s.name);
+    }
+
+    function playModalDirectIdx(idx) {
+      const s = modalScrapedStreams[idx];
+      if (!s) return;
+      const targetUrl = s.directUrl || s.underlyingUrl || s.url;
+      playStream(targetUrl, s.title || s.name);
     }
 
     function openWithModalStreamIdx(idx) {
@@ -4479,7 +4527,9 @@ class WebUI {
         const data = await res.json();
         const rawStreams = data.streams || [];
 
-        currentStreams = rawStreams.map((s, idx) => {
+        // Group streams by underlying source so each file displays as a single card!
+        const groupedStreams = {};
+        rawStreams.forEach((s, idx) => {
           const finalUrl = normalizeStreamUrl(s.url);
           const rawName = (s.name || '').replace(/\\n/g, ' ');
           const rawTitle = (s.title || '').replace(/\\n/g, '\\n');
@@ -4496,35 +4546,52 @@ class WebUI {
           const lowerUrl = underlyingUrl.toLowerCase();
           const isHlsOrDash = lowerUrl.includes('.m3u8') || lowerUrl.includes('.mpd');
 
-          const isTorboxCached = rawName.includes('[Cached]') || rawTitle.includes('Cached on TorBox');
-          const isTorboxCachable = rawName.toLowerCase().includes('cachable') || rawName.includes('Start Caching') || rawName.includes('[Cache]') || rawTitle.toLowerCase().includes('cachable') || rawTitle.toLowerCase().includes('start caching');
+          const isTorboxCached = rawName.includes('[Cached]') || rawTitle.includes('Cached on TorBox') || rawName.includes('⚡');
+          const isTorboxCachable = rawName.toLowerCase().includes('cachable') || rawName.includes('Click to Cache') || rawName.includes('Start Caching') || rawName.includes('[Cache]') || rawTitle.toLowerCase().includes('cachable');
 
           const hosterInfo = checkUrlHosterStatus(underlyingUrl);
           const isHosterOffline = (hosterInfo.isSupported && !hosterInfo.isOnline) || rawName.includes('Offline') || rawTitle.includes('Offline');
 
-          // A stream is cachable to TorBox only if it is not HLS/DASH, not already cached, and the hoster is NOT offline!
-          const isSupportedHoster = !isHlsOrDash && !isTorboxCached && !isHosterOffline && (
+          const isSupportedHoster = !isHlsOrDash && !isHosterOffline && (
             isTorboxCachable ||
             hosterInfo.isOnline ||
             lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.mkv') || lowerUrl.endsWith('.avi') || lowerUrl.endsWith('.webm') || lowerUrl.endsWith('.ts')
           );
 
-          return {
-            index: idx,
-            name: rawName,
-            title: rawTitle,
-            url: finalUrl,
-            underlyingUrl: underlyingUrl,
-            mediaTitle: displayTitle,
-            hosterName: hosterInfo.name,
-            isHosterOffline: isHosterOffline,
-            isCached: isTorboxCached,
-            isCache: isTorboxCachable,
-            isCachableToTorbox: isSupportedHoster,
-            is4K: rawName.includes('4K') || rawTitle.includes('[4K]'),
-            is1080p: rawName.includes('1080p') || rawTitle.includes('[FHD]') || rawTitle.includes('1080p'),
-          };
+          const groupKey = underlyingUrl || finalUrl;
+          if (!groupedStreams[groupKey]) {
+            groupedStreams[groupKey] = {
+              index: Object.keys(groupedStreams).length,
+              name: rawName,
+              title: rawTitle,
+              url: finalUrl,
+              underlyingUrl: underlyingUrl,
+              torboxUrl: finalUrl.includes('/torbox/play') ? finalUrl : '',
+              directUrl: !finalUrl.includes('/torbox/play') ? finalUrl : '',
+              mediaTitle: displayTitle,
+              hosterName: hosterInfo.name,
+              isHosterOffline: isHosterOffline,
+              isCached: isTorboxCached,
+              isCache: isTorboxCachable,
+              isCachableToTorbox: isSupportedHoster,
+              is4K: rawName.includes('4K') || rawTitle.includes('[4K]'),
+              is1080p: rawName.includes('1080p') || rawTitle.includes('[FHD]') || rawTitle.includes('1080p'),
+            };
+          } else {
+            const existing = groupedStreams[groupKey];
+            if (isTorboxCached) existing.isCached = true;
+            if (isTorboxCachable) existing.isCache = true;
+            if (isSupportedHoster) existing.isCachableToTorbox = true;
+            if (finalUrl.includes('/torbox/play')) {
+              existing.torboxUrl = finalUrl;
+              if (isTorboxCached) existing.url = finalUrl;
+            } else {
+              existing.directUrl = finalUrl;
+            }
+          }
         });
+
+        currentStreams = Object.values(groupedStreams);
 
         if (currentStreams.length === 0) {
           resultsDiv.innerHTML = '<div style="color:#f85149; padding:10px;">No streams found for ' + escapeHtml(displayTitle) + '. Check that your scrapers are enabled above.</div>';
@@ -4580,20 +4647,27 @@ class WebUI {
 
       for (let i = 0; i < filtered.length; i++) {
         const s = filtered[i];
-        html += '<div class="stream-item">';
+        html += '<div class="stream-item" style="border-left: 4px solid ' + (s.isCached ? '#238636' : '#195feb') + ';">';
         html += '  <div class="stream-info">';
         html += '    <div class="stream-title">' + escapeHtml(s.name) + '</div>';
         html += '    <div class="stream-sub">' + escapeHtml(s.title) + '</div>';
         html += '  </div>';
         html += '  <div class="stream-actions">';
-        html += '    <button class="btn btn-play" onclick="openPlayerModal(' + s.index + ')">▶️ Web Mode</button>';
+        if (s.isCached) {
+          html += '    <button class="btn btn-success" style="font-weight:700;" onclick="openPlayerModalWithUrl(' + s.index + ', \'' + encodeURIComponent(s.torboxUrl || s.url) + '\')">⚡ Play with TorBox</button>';
+          if (s.directUrl) {
+            html += '    <button class="btn" style="border-color:#388bfd; color:#58a6ff;" onclick="openPlayerModalWithUrl(' + s.index + ', \'' + encodeURIComponent(s.directUrl) + '\')">🌐 Play Original</button>';
+          }
+        } else {
+          html += '    <button class="btn btn-play" onclick="openPlayerModal(' + s.index + ')">🌐 Play Original</button>';
+          if (s.isCachableToTorbox) {
+            html += '    <button class="btn btn-success" onclick="uploadStreamToTorbox(' + s.index + ', this)">☁️ Cache to TorBox</button>';
+          }
+        }
         html += '    <button class="btn btn-open-with" onclick="showOpenWithModal(' + s.index + ')">🚀 Open With...</button>';
         html += '    <button class="btn" onclick="downloadM3uCurrent(' + s.index + ')">📥 .m3u</button>';
         html += '    <button class="btn" onclick="copyStreamUrl(' + s.index + ')">📋 URL</button>';
-        if (s.isCachableToTorbox) {
-          const btnLabel = s.isCache ? '☁️⬆️ Start TorBox Cache' : '☁️⬆️ Cache to TorBox';
-          html += '    <button class="btn btn-success" onclick="uploadStreamToTorbox(' + s.index + ', this)">' + btnLabel + '</button>';
-        } else if (s.isHosterOffline) {
+        if (s.isHosterOffline) {
           html += '    <span class="badge" style="background:rgba(248,81,73,0.15); color:#f85149; border:1px solid rgba(248,81,73,0.3); font-size:0.75rem; padding:6px 9px; display:inline-flex; align-items:center;" title="TorBox debrider for this hoster is currently offline">⚠️ ' + escapeHtml(s.hosterName || 'Hoster') + ' Offline on TorBox</span>';
         }
         html += '  </div>';
@@ -4616,6 +4690,14 @@ class WebUI {
       if (!s || !s.url) return;
       currentPlayingIndex = idx;
       playStream(s.url, (s.mediaTitle ? s.mediaTitle + ' • ' : '') + s.name);
+    }
+
+    function openPlayerModalWithUrl(idx, encUrl) {
+      const s = currentStreams[idx];
+      if (!s) return;
+      currentPlayingIndex = idx;
+      const targetUrl = decodeURIComponent(encUrl);
+      playStream(targetUrl, (s.mediaTitle ? s.mediaTitle + ' • ' : '') + s.name);
     }
 
     function openWithFromPlayer() {
