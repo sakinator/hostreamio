@@ -864,6 +864,8 @@ class ScraperEngine {
     'tamilmv': '1tamilmv.tf',
     'asiandrama': 'asiandrama.me',
     'coolmovies': 'coolmovies.to',
+    'desiserials': 'desi-serials.to',
+    'tamilian': 'embedojo.net',
   };
 
   static String extractDomain(String url) {

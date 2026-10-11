@@ -13,6 +13,7 @@ import 'upstream/services/scraper/sites/cinejoy.dart';
 import 'upstream/services/scraper/sites/cinesrc.dart';
 import 'upstream/services/scraper/sites/cinesu.dart';
 import 'upstream/services/scraper/sites/coolmovies.dart';
+import 'upstream/services/scraper/sites/desiserials.dart';
 import 'upstream/services/scraper/sites/downloadeverything.dart';
 import 'upstream/services/scraper/sites/dramacool.dart';
 import 'upstream/services/scraper/sites/dramaday.dart';
@@ -51,6 +52,7 @@ import 'upstream/services/scraper/sites/playdesi.dart';
 import 'upstream/services/scraper/sites/purstream.dart';
 import 'upstream/services/scraper/sites/rivestream.dart';
 import 'upstream/services/scraper/sites/tamilmv.dart';
+import 'upstream/services/scraper/sites/tamilian.dart';
 import 'upstream/services/scraper/sites/toonstream.dart';
 import 'upstream/services/scraper/sites/torrent_galaxy.dart';
 import 'upstream/services/scraper/sites/uhdmovies.dart';
@@ -87,6 +89,7 @@ class ScraperRegistry {
     CineSrcScraper(),
     CineSuScraper(),
     CoolMoviesScraper(),
+    DesiSerialsScraper(),
     DownloadEverythingScraper(),
     DramacoolScraper(),
     DramaDayScraper(),
@@ -125,6 +128,7 @@ class ScraperRegistry {
     PurstreamScraper(),
     RiveStreamScraper(),
     TamilmvScraper(),
+    TamilianScraper(),
     ToonStreamScraper(),
     TorrentGalaxyScraper(),
     UHDMoviesScraper(),
