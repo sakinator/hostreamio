@@ -2863,7 +2863,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     child: _buildFeatureBadge(
                       icon: Icons.electric_bolt_rounded,
                       title: 'Auto Circuit Breaker',
-                      subtitle: '56 Providers Monitored',
+                      subtitle: '${ScraperEngine.instance.activeScrapers.length} Providers Monitored',
                       color: const Color(0xFFD29922),
                     ),
                   ),
@@ -4726,16 +4726,17 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     );
   }
 
-  Widget _buildStreamsSection() {
     if (_isScrapingStreams) {
+      final totalScrapers = ScraperEngine.instance.activeScrapers.length;
+      final label = totalScrapers > 0 ? '$totalScrapers' : 'all';
       return Container(
         padding: const EdgeInsets.all(32),
         alignment: Alignment.center,
-        child: const Column(
+        child: Column(
           children: [
-            CircularProgressIndicator(color: Color(0xFFFF0C82)),
-            SizedBox(height: 12),
-            Text('Scraping 56 providers for streams...', style: TextStyle(color: Colors.grey, fontSize: 14)),
+            const CircularProgressIndicator(color: Color(0xFFFF0C82)),
+            const SizedBox(height: 12),
+            Text('Scraping $label providers for streams...', style: const TextStyle(color: Colors.grey, fontSize: 14)),
           ],
         ),
       );

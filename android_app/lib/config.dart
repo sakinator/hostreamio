@@ -38,7 +38,7 @@ class AddonConfig {
   bool enableDeadLinkFilter = true;
   bool showRatingsInStreams = false;
   bool enableOpenSubtitles = true;
-  bool enableTorboxCachedTorrents = false; // By default OFF (100% direct hosters)
+  bool enableTorboxCachedTorrents = true; // By default ON (Fetch 100% TorBox cached torrents, strictly 0 P2P)
   bool enableCacheBypass = true; // Prowlarr-style Cache escape (no-cache headers + query nonce)
   bool enablePublicStreams = false; // By default OFF to prevent unverified public video/porn uploads
   String proxyResolverUrl = ''; // FlareSolverr / Proxy URL (e.g. http://localhost:8191/v1)

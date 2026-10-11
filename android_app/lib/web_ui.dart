@@ -1499,7 +1499,7 @@ class WebUI {
         <label style="display:flex; align-items:flex-start; gap:12px; cursor:pointer;">
           <input type="checkbox" id="enableTorboxCachedTorrents" style="margin-top:4px;" $enableTorboxCachedTorrentsChecked onchange="saveTorboxCachedToggle(this.checked)">
           <div>
-            <strong style="color:var(--text); font-size:0.92rem;">⚡ Fetch TorBox Cached Torrents (Default OFF • Strictly 0 P2P)</strong>
+            <strong style="color:var(--text); font-size:0.92rem;">⚡ Fetch TorBox Cached Torrents (Default ON • Strictly 0 P2P)</strong>
             <p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted); line-height:1.4;">
               Queries high-speed torrent providers (YTS, EZTV, Nyaa Anime, 1TamilMV Desi, Knaben, TorrentGalaxy) <em>strictly and only</em> if the file is already 100% cached on TorBox Cloud CDN. Uncached torrents are completely discarded with zero P2P seeding, zero peer connections, and instant gigabit cloud playback.
             </p>
@@ -1712,7 +1712,7 @@ class WebUI {
       <!-- Instant Search Filter & Quick Chips -->
       <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
         <div style="display:flex; gap:10px; align-items:center;">
-          <input type="text" id="providerSearchInput" placeholder="🔍 Search 56 providers (e.g. hubcloud, 4k, regional, anime, hls, bollyflix)..." oninput="filterProvidersList()" style="flex:1; padding:8px 12px; background:#090d13; border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:0.88rem;">
+          <input type="text" id="providerSearchInput" placeholder="🔍 Search ${providers.length} providers (e.g. hubcloud, 4k, regional, anime, hls, bollyflix)..." oninput="filterProvidersList()" style="flex:1; padding:8px 12px; background:#090d13; border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:0.88rem;">
           <span id="providerFilteredCount" style="font-size:0.82rem; color:var(--text-muted); white-space:nowrap;">Showing ${providers.length} of ${providers.length}</span>
         </div>
         <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;" id="providerFilterChips">
@@ -1831,7 +1831,7 @@ class WebUI {
           Syncs git repository, Cloudstream resolvers, PlayTorrio base, regional scrapers, regenerates registry, and refreshes memory caches.
         </div>
         <button class="btn btn-success" id="btnMasterUpdate" onclick="triggerUpdateChannel('all')" style="padding:9px 18px; font-weight:600; font-size:0.92rem;">
-          ⚡ Run Full Update Pipeline (All 56 Providers &amp; Sources)
+          ⚡ Run Full Update Pipeline (All ${providers.length} Providers &amp; Sources)
         </button>
       </div>
 
