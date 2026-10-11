@@ -52,6 +52,44 @@ class WebUI {
       ''';
     }).join('\n');
 
+    final aboutScrapersCards = providers.map((p) {
+      final id = p['id'].toString();
+      final name = p['name'].toString();
+      final isEnabled = p['enabled'] == true;
+      final meta = getProviderMeta(id);
+      final domain = ScraperEngine.siteDomainMap[id] ?? ScraperEngine.siteDomainMap[id.toLowerCase()] ?? '';
+      final domainBadge = domain.isNotEmpty ? '<span style="font-size:0.75rem; color:#58a6ff; font-family:monospace; background:rgba(88,166,255,0.1); border:1px solid rgba(88,166,255,0.25); border-radius:4px; padding:2px 6px;">🌐 $domain</span>' : '';
+      final statusBadge = isEnabled
+          ? '<span style="font-size:0.72rem; color:#3fb950; background:rgba(63,185,80,0.15); border:1px solid rgba(63,185,80,0.3); border-radius:10px; padding:2px 8px; font-weight:700;">● Active</span>'
+          : '<span style="font-size:0.72rem; color:var(--text-muted); background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:10px; padding:2px 8px;">Disabled</span>';
+
+      return '''
+        <div class="about-scraper-card" data-name="${name.toLowerCase()}" data-id="${id.toLowerCase()}" data-scope="${meta['scope']!.toLowerCase()}" data-desc="${meta['desc']!.toLowerCase()}" style="background:#090d13; border:1px solid var(--border); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between; gap:10px; transition:border-color 0.2s ease, transform 0.2s ease;" onmouseenter="this.style.borderColor='#ff0c82'; this.style.transform='translateY(-2px)';" onmouseleave="this.style.borderColor='var(--border)'; this.style.transform='none';">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.25rem;">${meta['icon'] ?? '⚡'}</span>
+                <strong style="color:var(--text); font-size:0.95rem;">$name</strong>
+              </div>
+              $statusBadge
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+              <span class="tag-pill tag-scope" style="font-size:0.72rem; padding:2px 6px;">${meta['scope']}</span>
+              <span class="tag-pill tag-quality" style="font-size:0.72rem; padding:2px 6px;">${meta['quality']}</span>
+              <span class="tag-pill tag-tech" style="font-size:0.72rem; padding:2px 6px;">${meta['tech']}</span>
+            </div>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.45; margin:0;">
+              ${meta['desc']}
+            </p>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px; margin-top:4px;">
+            $domainBadge
+            <span style="font-size:0.72rem; color:var(--text-muted); font-family:monospace;">ID: $id</span>
+          </div>
+        </div>
+      ''';
+    }).join('\n');
+
     return '''
 <!DOCTYPE html>
 <html lang="en">
@@ -2069,6 +2107,43 @@ class WebUI {
       <div class="status-chip"><span class="status-dot"></span> <strong>Prowlarr Captcha:</strong> FlareSolverr Ready</div>
     </div>
 
+    <!-- Scraper Directory & Speciality Index -->
+    <div class="card" style="margin-top: 20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h2>📦 Built-in Scraper Catalog &amp; Speciality Index (${providers.length} Providers)</h2>
+          <p style="color:var(--text-muted); font-size:0.88rem; margin-top:4px;">
+            Comprehensive directory of all integrated stream scrapers, torrent indexers, cloud hoster extractors, and micro-drama aggregators.
+          </p>
+        </div>
+        <span class="badge" style="background:rgba(255,12,130,0.15); color:#ff0c82; border:1px solid rgba(255,12,130,0.35); font-size:0.85rem; padding:4px 12px; font-weight:700;">
+          ${providers.length} Engine Scrapers
+        </span>
+      </div>
+
+      <!-- Live Search & Filter Pills for About Scrapers -->
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="text" id="aboutScraperSearch" placeholder="🔍 Search scrapers by name, domain, speciality, or region (e.g. bollyflix, drama, anime, 4k, hls)..." oninput="filterAboutScrapers()" style="flex:1; padding:9px 14px; background:#090d13; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:0.88rem;">
+          <span id="aboutScraperCount" style="font-size:0.82rem; color:var(--text-muted); white-space:nowrap;">Showing ${providers.length} of ${providers.length}</span>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;" id="aboutFilterChips">
+          <span style="font-size:0.75rem; color:var(--text-muted); margin-right:4px;">Speciality:</span>
+          <button type="button" class="stream-filter-chip active" onclick="setAboutFilter('', this)">All (${providers.length})</button>
+          <button type="button" class="stream-filter-chip" onclick="setAboutFilter('regional', this)">🇮🇳 Indian &amp; Bollywood</button>
+          <button type="button" class="stream-filter-chip" onclick="setAboutFilter('asian', this)">⛩️ Asian &amp; Short Drama</button>
+          <button type="button" class="stream-filter-chip" onclick="setAboutFilter('anime', this)">⛩️ Anime</button>
+          <button type="button" class="stream-filter-chip" onclick="setAboutFilter('global', this)">🌐 Global HD/4K</button>
+          <button type="button" class="stream-filter-chip" onclick="setAboutFilter('torrent', this)">⚡ TorBox Cloud (0 P2P)</button>
+        </div>
+      </div>
+
+      <!-- Scraper Directory Grid -->
+      <div class="grid" id="aboutScrapersGrid" style="max-height:600px; overflow-y:auto; padding:4px;">
+        $aboutScrapersCards
+      </div>
+    </div>
+
     <!-- Community Attributions & Open Source Credits Card -->
     <div class="card" style="margin-top: 20px;">
       <h2>🌟 Community Attributions &amp; Open Source Credits</h2>
@@ -4005,6 +4080,35 @@ class WebUI {
       document.getElementById('providerFilteredCount').innerText = 'Showing ' + visible + ' of ' + cards.length;
     }
 
+    function setAboutFilter(term, btn) {
+      document.querySelectorAll('#aboutFilterChips .stream-filter-chip').forEach(c => c.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      const input = document.getElementById('aboutScraperSearch');
+      input.value = term;
+      filterAboutScrapers();
+    }
+
+    function filterAboutScrapers() {
+      const query = document.getElementById('aboutScraperSearch').value.trim().toLowerCase();
+      const cards = document.querySelectorAll('#aboutScrapersGrid .about-scraper-card');
+      let visible = 0;
+      cards.forEach(c => {
+        const text = c.innerText.toLowerCase();
+        const name = c.getAttribute('data-name') || '';
+        const id = c.getAttribute('data-id') || '';
+        const scope = c.getAttribute('data-scope') || '';
+        const desc = c.getAttribute('data-desc') || '';
+        if (!query || text.includes(query) || name.includes(query) || id.includes(query) || scope.includes(query) || desc.includes(query)) {
+          c.style.display = 'flex';
+          visible++;
+        } else {
+          c.style.display = 'none';
+        }
+      });
+      const cnt = document.getElementById('aboutScraperCount');
+      if (cnt) cnt.innerText = 'Showing ' + visible + ' of ' + cards.length;
+    }
+
     async function toggleProvider(id, enabled) {
       try {
         const res = await fetch('/api/provider/' + id, {
@@ -4953,53 +5057,89 @@ class WebUI {
     switch (id.toLowerCase()) {
       // 🇮🇳 Indian Regional Special
       case 'vegamovies':
-        return {'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'High-bitrate V-Cloud, HubCloud 4K/1080p HEVC Multi-Audio'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'High-bitrate V-Cloud, HubCloud 4K/1080p HEVC Multi-Audio'};
       case 'moviesdrive':
-        return {'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Typesense JSON indexer, HubCloud 10Gbps & PixelDrain 4K/1080p multi-audio'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Typesense JSON indexer, HubCloud 10Gbps & PixelDrain 4K/1080p multi-audio'};
       case 'moviesmod':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Extensive Netflix, Prime, Hotstar, SonyLIV, Zee5 OTT web series & dual audio'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Extensive Netflix, Prime, Hotstar, SonyLIV, Zee5 OTT web series & dual audio'};
       case 'uhdmovies':
-        return {'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Pure 4K UHD, HDR, Dolby Vision, 10-Bit HEVC, and REMUX cloud streams'};
+        return {'icon': '💎', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Pure 4K UHD, HDR, Dolby Vision, 10-Bit HEVC, and REMUX cloud streams'};
       case 'multimovies':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Multi-Audio streaming server (Hindi, Tamil, Telugu, English)'};
+        return {'icon': '🎬', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Multi-Audio streaming server (Hindi, Tamil, Telugu, English)'};
       case 'toonstream':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Dedicated Hindi Dubbed Anime, Cartoons, and Animated Series'};
+        return {'icon': '🎭', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Dedicated Hindi Dubbed Anime, Cartoons, and Animated Series'};
       case 'bollyflix':
-        return {'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Bollywood, South Hindi Dubbed, 4K/1080p multi-audio releases'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Bollywood, South Hindi Dubbed, 4K/1080p multi-audio releases'};
+      case 'bolly4u':
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Hindi, Punjabi, South Indian dubbed movies & fast cloud mirrors'};
       case 'hdhub4u':
-        return {'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Latest Hindi cinema, South dubs, HubCloud & DriveSeed direct mirrors'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Latest Hindi cinema, South dubs, HubCloud & DriveSeed direct mirrors'};
       case 'fourkhdhub':
-        return {'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Pure 2160p 4K UHD Remux, HDR10 & multi-audio regional mirrors'};
+        return {'icon': '💎', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Pure 2160p 4K UHD Remux, HDR10 & multi-audio regional mirrors'};
       case 'hindmoviez':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Bollywood, South Hindi dubs & regional streams'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Bollywood, South Hindi dubs & regional streams'};
       case 'playdesi':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '🎬 Direct MP4', 'desc': 'Indian TV shows, daily serials & Desi web series'};
+        return {'icon': '📺', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '🎬 Direct MP4', 'desc': 'Indian TV shows, daily serials & Desi web series'};
+      case 'desiserials':
+        return {'icon': '📺', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Daily Indian TV serials (Star Plus, Zee TV, Sony, Colors) via flow.tvlogy HLS'};
+      case 'coolmovies':
+        return {'icon': '🎬', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '🎬 Direct MP4', 'desc': 'Bollywood, Hollywood Hindi Dubbed, Punjabi & South Indian releases'};
+      case 'tamilian':
+        return {'icon': '🌴', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'South Indian regional cinema (Tamil, Telugu, Malayalam, Kannada) via EmbedOjo HLS'};
+      case 'einthusan':
+        return {'icon': '👑', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'High-definition Indian cinema across Hindi, Tamil, Telugu, Malayalam & Kannada'};
+      case 'mlsbd':
+        return {'icon': '🇧🇩', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Largest Bangladeshi & South Asian cinema link store (HubCloud, Gofile, PixelDrain)'};
+      case 'tamilultra':
+        return {'icon': '🌴', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Indian Live TV & South Indian entertainment streams with multi-bitrate HLS'};
+      case 'tamilmv':
+        return {'icon': '⚡', 'scope': '🇮🇳 Regional', 'quality': '4K UHD', 'tech': '☁️ TorBox Cloud', 'desc': 'Premier South Indian & Bollywood tracker via 100% cloud-cached TorBox debrid'};
       case 'yomovies':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Hindi, Tamil, Telugu, Punjabi & regional cinema'};
+        return {'icon': '🇮🇳', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Hindi, Tamil, Telugu, Punjabi & regional cinema'};
       case 'vadapav':
-        return {'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '🌐 Direct HTTP', 'desc': 'Zero-lag Indian high-speed direct CDN file storage'};
+        return {'icon': '⚡', 'scope': '🇮🇳 Regional', 'quality': '1080p FHD', 'tech': '🌐 Direct HTTP', 'desc': 'Zero-lag Indian high-speed direct CDN file storage'};
 
       // ⛩️ Anime & Asian Special
       case 'animepahe':
-        return {'scope': '⛩️ Anime', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Sub/Dub anime with multi-bitrate streams & soft subtitles'};
+        return {'icon': '⛩️', 'scope': '⛩️ Anime', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Sub/Dub anime with multi-bitrate streams & soft subtitles'};
       case 'gogoanime':
-        return {'scope': '⛩️ Anime', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Simulcast anime episodes, massive archive with dual audio'};
+        return {'icon': '⛩️', 'scope': '⛩️ Anime', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Simulcast anime episodes, massive archive with dual audio'};
       case 'hianime':
-        return {'scope': '⛩️ Anime', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'HiAnime CDN, multi-quality streams & soft subs'};
+        return {'icon': '⛩️', 'scope': '⛩️ Anime', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'HiAnime CDN, multi-quality streams & soft subs'};
       case 'kisskh':
-        return {'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'K-Drama, C-Drama & Asian series with multi-language subtitles'};
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'K-Drama, C-Drama & Asian series with multi-language subtitles'};
       case 'kissasian':
-        return {'scope': '⛩️ Asian', 'quality': '720p/1080p', 'tech': '⚡ Fast HLS', 'desc': 'Korean & Asian drama catalog with high-speed playback'};
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '720p/1080p', 'tech': '⚡ Fast HLS', 'desc': 'Korean & Asian drama catalog with high-speed playback'};
       case 'dramacool':
-        return {'scope': '⛩️ Asian', 'quality': '720p/1080p', 'tech': '🎬 Direct MP4', 'desc': 'Asian dramas, variety shows & East Asian cinema'};
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '720p/1080p', 'tech': '🎬 Direct MP4', 'desc': 'Asian dramas, variety shows & East Asian cinema'};
+      case 'dramaday':
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '☁️ Cloud Extractors', 'desc': 'Same-day airing K-Drama, C-Drama boxsets & direct cloud downloads'};
+      case 'asian_drama_torrent':
+      case 'asiandrama':
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '☁️ TorBox Cloud', 'desc': 'Specialized Asian Drama releases via 100% cloud-cached TorBox debrid'};
+      case 'viewasian':
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'K-Drama, C-Drama & J-Drama episodes with multi-server HLS & soft subtitles'};
+      case 'shortdrama':
+        return {'icon': '📱', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Vertical micro-dramas (DramaBox, ReelShort, ShortMax) with unlocked episodes'};
+      case 'nyaa':
+        return {'icon': '⛩️', 'scope': '⛩️ Anime', 'quality': '1080p/4K', 'tech': '☁️ TorBox Cloud', 'desc': 'World largest Anime & Asian media tracker via 100% cloud-cached TorBox debrid'};
+      case 'yts':
+        return {'icon': '🎬', 'scope': '🌐 Global', 'quality': '1080p/4K', 'tech': '☁️ TorBox Cloud', 'desc': 'Ultra-compact high efficiency movie releases via 100% cloud-cached TorBox debrid'};
+      case 'eztv':
+        return {'icon': '📺', 'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '☁️ TorBox Cloud', 'desc': 'Global television series releases via 100% cloud-cached TorBox debrid'};
+      case 'torrentgalaxy':
+      case 'torrent_galaxy':
+        return {'icon': '⚡', 'scope': '🌐 Global', 'quality': '1080p/4K', 'tech': '☁️ TorBox Cloud', 'desc': 'Comprehensive cinema & TV tracker via 100% cloud-cached TorBox debrid'};
+      case 'knaben':
+        return {'icon': '🔍', 'scope': '🌐 Global', 'quality': '1080p/4K', 'tech': '☁️ TorBox Cloud', 'desc': 'Meta-crawler aggregating top international releases via cloud-cached TorBox debrid'};
 
       // 🌐 International / Global
       case 'vidsrc':
-        return {'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Flagship multi-server global streaming cluster with adaptive HLS'};
+        return {'icon': '🌐', 'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Flagship multi-server global streaming cluster with adaptive HLS'};
       case 'lookmovie':
-        return {'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Premium global cinema & television series with soft subtitles'};
+        return {'icon': '🌐', 'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Premium global cinema & television series with soft subtitles'};
       case 'vidlink':
-        return {'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Ultra-fast global CDN streaming network with multi-language subs'};
+        return {'icon': '⚡', 'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Ultra-fast global CDN streaming network with multi-language subs'};
       case 'multiembed':
         return {'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Aggregated multi-source embed fallback player and resolver'};
       case 'rivestream':

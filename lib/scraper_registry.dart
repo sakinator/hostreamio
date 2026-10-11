@@ -1,5 +1,5 @@
 // AUTO-GENERATED SCRAPER REGISTRY - DO NOT EDIT MANUALLY
-// Generated at: 2026-10-10T14:33:03.189365
+// Generated at: 2026-10-11T14:42:02.628484
 // Run "dart run tool/generate_registry.dart" or "pipeline/update.ps1" to regenerate.
 
 import 'upstream/services/scraper/stream_scraper.dart';
@@ -18,6 +18,7 @@ import 'upstream/services/scraper/sites/downloadeverything.dart';
 import 'upstream/services/scraper/sites/dramacool.dart';
 import 'upstream/services/scraper/sites/dramaday.dart';
 import 'upstream/services/scraper/sites/dulo.dart';
+import 'upstream/services/scraper/sites/einthusan.dart';
 import 'upstream/services/scraper/sites/eztv.dart';
 import 'upstream/services/scraper/sites/flaxmovies.dart';
 import 'upstream/services/scraper/sites/flystream.dart';
@@ -39,6 +40,7 @@ import 'upstream/services/scraper/sites/lookmovie.dart';
 import 'upstream/services/scraper/sites/mapple.dart';
 import 'upstream/services/scraper/sites/megasource.dart';
 import 'upstream/services/scraper/sites/meowtv.dart';
+import 'upstream/services/scraper/sites/mlsbd.dart';
 import 'upstream/services/scraper/sites/movienight.dart';
 import 'upstream/services/scraper/sites/moviesdrive.dart';
 import 'upstream/services/scraper/sites/moviesmod.dart';
@@ -51,8 +53,10 @@ import 'upstream/services/scraper/sites/peestream.dart';
 import 'upstream/services/scraper/sites/playdesi.dart';
 import 'upstream/services/scraper/sites/purstream.dart';
 import 'upstream/services/scraper/sites/rivestream.dart';
-import 'upstream/services/scraper/sites/tamilmv.dart';
+import 'upstream/services/scraper/sites/shortdrama.dart';
 import 'upstream/services/scraper/sites/tamilian.dart';
+import 'upstream/services/scraper/sites/tamilmv.dart';
+import 'upstream/services/scraper/sites/tamilultra.dart';
 import 'upstream/services/scraper/sites/toonstream.dart';
 import 'upstream/services/scraper/sites/torrent_galaxy.dart';
 import 'upstream/services/scraper/sites/uhdmovies.dart';
@@ -69,6 +73,7 @@ import 'upstream/services/scraper/sites/vidsrc.dart';
 import 'upstream/services/scraper/sites/vidup.dart';
 import 'upstream/services/scraper/sites/vidvault.dart';
 import 'upstream/services/scraper/sites/vidzee.dart';
+import 'upstream/services/scraper/sites/viewasian.dart';
 import 'upstream/services/scraper/sites/vixsrc.dart';
 import 'upstream/services/scraper/sites/vuflix.dart';
 import 'upstream/services/scraper/sites/xdownloader.dart';
@@ -94,6 +99,7 @@ class ScraperRegistry {
     DramacoolScraper(),
     DramaDayScraper(),
     DuloScraper(),
+    EinthusanScraper(),
     EztvScraper(),
     FlaxMoviesScraper(),
     FlyStreamScraper(),
@@ -115,6 +121,7 @@ class ScraperRegistry {
     MappleScraper(),
     MegaSourceScraper(),
     MeowTvScraper(),
+    MLSBDScraper(),
     MovieNightScraper(),
     MoviesDriveScraper(),
     MoviesModScraper(),
@@ -127,8 +134,10 @@ class ScraperRegistry {
     PlayDesiScraper(),
     PurstreamScraper(),
     RiveStreamScraper(),
-    TamilmvScraper(),
+    ShortDramaScraper(),
     TamilianScraper(),
+    TamilmvScraper(),
+    TamilUltraScraper(),
     ToonStreamScraper(),
     TorrentGalaxyScraper(),
     UHDMoviesScraper(),
@@ -145,6 +154,7 @@ class ScraperRegistry {
     VidUpScraper(),
     VidVaultScraper(),
     VidZeeScraper(),
+    ViewAsianScraper(),
     VixSrcScraper(),
     VuflixScraper(),
     XDownloaderScraper(),

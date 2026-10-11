@@ -866,6 +866,11 @@ class ScraperEngine {
     'coolmovies': 'coolmovies.to',
     'desiserials': 'desi-serials.to',
     'tamilian': 'embedojo.net',
+    'viewasian': 'viewasian.co',
+    'shortdrama': 'shortdramatop.com',
+    'einthusan': 'einthusan.tv',
+    'mlsbd': 'mlsbd.co',
+    'tamilultra': 'tamilultra.co.uk',
   };
 
   static String extractDomain(String url) {
