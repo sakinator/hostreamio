@@ -4726,6 +4726,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     );
   }
 
+  Widget _buildStreamsSection() {
     if (_isScrapingStreams) {
       final totalScrapers = ScraperEngine.instance.activeScrapers.length;
       final label = totalScrapers > 0 ? '$totalScrapers' : 'all';
