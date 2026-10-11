@@ -3802,19 +3802,35 @@ class WebUI {
       container.innerHTML = streams.map((s, idx) => {
         let badgeHtml = '';
         if (s.isTorboxCached) {
-          badgeHtml = '<span class="badge" style="background:rgba(63, 185, 80, 0.15); color:#3fb950; border:1px solid rgba(63, 185, 80, 0.3); font-weight:700;">⚡ TorBox [Cached]</span>';
+          badgeHtml += '<span class="badge" style="background:rgba(63, 185, 80, 0.15); color:#3fb950; border:1px solid rgba(63, 185, 80, 0.3); font-weight:700;">⚡ TorBox [Cached]</span>';
         } else if (s.isHosterOffline) {
           const hName = s.hosterName || 'Hoster';
-          badgeHtml = '<span class="badge" style="background:rgba(248, 81, 73, 0.15); color:#f85149; border:1px solid rgba(248, 81, 73, 0.3); font-weight:700;">⚠️ TorBox: ' + escapeHtml(hName) + ' Offline</span>';
+          badgeHtml += '<span class="badge" style="background:rgba(248, 81, 73, 0.15); color:#f85149; border:1px solid rgba(248, 81, 73, 0.3); font-weight:700;">⚠️ TorBox: ' + escapeHtml(hName) + ' Offline</span>';
         } else if (s.isTorboxCaching) {
-          badgeHtml = '<span class="badge" style="background:rgba(88, 166, 255, 0.15); color:#58a6ff; border:1px solid rgba(88, 166, 255, 0.3); font-weight:700;">☁️ TorBox [Click to Cache]</span>';
+          badgeHtml += '<span class="badge" style="background:rgba(88, 166, 255, 0.15); color:#58a6ff; border:1px solid rgba(88, 166, 255, 0.3); font-weight:700;">☁️ TorBox [Click to Cache]</span>';
         } else {
-          badgeHtml = '<span class="badge" style="background:rgba(240, 136, 62, 0.15); color:#f0883e; border:1px solid rgba(240, 136, 62, 0.3); font-weight:700;">🌐 Direct Play</span>';
+          badgeHtml += '<span class="badge" style="background:rgba(31, 111, 235, 0.15); color:#79c0ff; border:1px solid rgba(56, 139, 253, 0.3); font-weight:700;">🌐 Direct Play</span>';
+        }
+
+        const siteLabel = s.site || s.provider || '';
+        if (siteLabel) {
+          badgeHtml += '<span class="badge" style="background:rgba(6, 95, 70, 0.2); color:#34d399; border:1px solid rgba(52, 211, 153, 0.4); font-weight:700;">🌐 ' + escapeHtml(siteLabel) + '</span>';
+        }
+
+        const fileType = s.fileType || (s.title && s.title.includes('.mkv') ? 'MKV' : (s.title && s.title.includes('.mp4') ? 'MP4' : ''));
+        if (fileType) {
+          badgeHtml += '<span class="badge" style="background:rgba(79, 70, 229, 0.2); color:#a5b4fc; border:1px solid rgba(129, 140, 248, 0.4); font-weight:700;">🎞️ ' + escapeHtml(fileType) + '</span>';
+        }
+
+        if (s.fileSize) {
+          badgeHtml += '<span class="badge" style="background:rgba(225, 29, 72, 0.2); color:#fb7185; border:1px solid rgba(251, 113, 133, 0.4); font-weight:700;">💾 ' + escapeHtml(s.fileSize) + '</span>';
         }
 
         const rawTitle = (s.title || s.name || '');
         const nlIdx = rawTitle.indexOf('\\n');
-        const mainTitle = nlIdx !== -1 ? rawTitle.substring(0, nlIdx) : rawTitle;
+        let mainTitle = nlIdx !== -1 ? rawTitle.substring(0, nlIdx) : rawTitle;
+        const extMatch = mainTitle.match(/^(.*?\.(?:mkv|mp4|avi|webm|ts|mov))\b.*/i);
+        if (extMatch) mainTitle = extMatch[1];
         const subDetails = nlIdx !== -1 ? rawTitle.substring(nlIdx + 1).split('\\n').join(' • ') : '';
 
         // Unified action buttons:

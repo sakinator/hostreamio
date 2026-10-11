@@ -320,6 +320,7 @@ class BadgeService {
     String? fileSize,
     required String providerName,
     String? sourceName,
+    String? siteDomain,
     String? hostName,
     String? ottPlatform,
     bool isCached = false,
@@ -399,8 +400,37 @@ class BadgeService {
       }
     }
 
+    // Detect Container / File Type
+    String fileType = '';
+    final extMatch = RegExp(r'\.(mkv|mp4|avi|webm|ts|m3u8|mov)\b', caseSensitive: false).firstMatch('$sceneFilename $rawTitle');
+    if (extMatch != null) {
+      fileType = extMatch.group(1)!.toUpperCase();
+    } else if (isHls) {
+      fileType = 'HLS';
+    } else {
+      fileType = 'MKV';
+    }
+
     if (effectiveFileSize != null && effectiveFileSize.isNotEmpty) {
+      final sizeNumMatch = RegExp(r'^([0-9\.]+)\s*(GB|MB|GiB|MiB)$', caseSensitive: false).firstMatch(effectiveFileSize.trim());
+      if (sizeNumMatch != null) {
+        final val = double.tryParse(sizeNumMatch.group(1)!);
+        final unit = sizeNumMatch.group(2)!.toUpperCase();
+        if (val != null) {
+          if (unit.contains('M') && val >= 1000) {
+            effectiveFileSize = '${(val / 1024).toStringAsFixed(1)} GB';
+          } else if (val.truncateToDouble() == val) {
+            effectiveFileSize = '${val.toInt()} $unit';
+          } else {
+            effectiveFileSize = '${val.toStringAsFixed(1)} $unit';
+          }
+        }
+      }
       details.add('💾 $effectiveFileSize');
+    }
+
+    if (fileType.isNotEmpty && !details.any((d) => d.contains(fileType))) {
+      details.add('🎞️ $fileType');
     }
 
     if (isCached) {
@@ -427,9 +457,17 @@ class BadgeService {
     final effectiveSource = (sourceName != null && sourceName.isNotEmpty)
         ? sourceName
         : cleanProvider;
+    final effectiveSite = (siteDomain != null && siteDomain.isNotEmpty)
+        ? siteDomain
+        : '';
     final effectiveHost = (hostName != null && hostName.isNotEmpty)
         ? hostName
         : (isCached ? 'TorBox Cloud CDN' : 'Direct Stream');
+
+    String sourceLine = '🌐 Source: $effectiveSource';
+    if (effectiveSite.isNotEmpty && !effectiveSource.toLowerCase().contains(effectiveSite.toLowerCase())) {
+      sourceLine += ' • 🔗 Site: $effectiveSite';
+    }
 
     // 5. Build multi-line title for Nuvio stream card
     final technicalMarkers = generateNuvioMarkers(
@@ -444,7 +482,7 @@ class BadgeService {
     final titleLines = [
       sceneFilename,
       if (details.isNotEmpty) details.join(' • '),
-      '🌐 Source: $effectiveSource',
+      sourceLine,
       '📦 Host: $effectiveHost',
     ];
 
@@ -482,6 +520,9 @@ class BadgeService {
       'title': titleWithMarkers,
       'badgeHeader': enrichedBadgeHeader,
       'fileSize': effectiveFileSize ?? '',
+      'fileType': fileType,
+      'source': effectiveSource,
+      if (effectiveSite.isNotEmpty) 'site': effectiveSite,
     };
   }
 
@@ -499,6 +540,11 @@ class BadgeService {
   }) {
     if (originalFilename != null && originalFilename.length > 10 && originalFilename.contains('.')) {
       var cleaned = originalFilename.replaceAll(RegExp(r'[\(\)\[\]]'), '.').replaceAll(RegExp(r'\.+'), '.');
+      // If filename has a video extension with trailing addon/size metadata (e.g. "...mkv .a11 19.6 GB")
+      final extMatch = RegExp(r'^(.*?\.(?:mkv|mp4|avi|webm|ts|mov))\b.*$', caseSensitive: false).firstMatch(cleaned);
+      if (extMatch != null) {
+        cleaned = extMatch.group(1)!;
+      }
       if (cleaned.endsWith('.')) cleaned = cleaned.substring(0, cleaned.length - 1);
       return cleaned;
     }

@@ -130,7 +130,7 @@ class DtddService {
               'url': 'https://www.doesthedogdie.com/media/$mediaId',
               'searchUrl': defaultSearchUrl,
               'triggers': triggers,
-              'safe': safe.take(10).toList(),
+              'safe': safe.take(30).toList(),
               'totalTriggers': triggers.length,
             };
 
@@ -320,7 +320,7 @@ class DtddService {
         'url': itemUrl.toString(),
         'searchUrl': defaultSearchUrl,
         'triggers': triggers,
-        'safe': safe.take(10).toList(),
+        'safe': safe.take(30).toList(),
         'totalTriggers': triggers.length,
         'isZeroKey': true,
       };

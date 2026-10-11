@@ -23,6 +23,8 @@ class ScrapedStream {
   final String url;
   final Map<String, dynamic>? behaviorHints;
   final String provider;
+  final String? site;
+  final String? fileType;
   final String? quality;
   final String? fileSize;
   final List<Map<String, dynamic>>? subtitles;
@@ -33,6 +35,8 @@ class ScrapedStream {
     required this.url,
     this.behaviorHints,
     required this.provider,
+    this.site,
+    this.fileType,
     this.quality,
     this.fileSize,
     this.subtitles,
@@ -43,7 +47,11 @@ class ScrapedStream {
         'title': title,
         'description': title,
         'url': url,
+        'provider': provider,
+        if (site != null && site!.isNotEmpty) 'site': site,
+        if (fileType != null && fileType!.isNotEmpty) 'fileType': fileType,
         if (fileSize != null && fileSize!.isNotEmpty) 'fileSize': fileSize,
+        if (quality != null && quality!.isNotEmpty) 'quality': quality,
         if (behaviorHints != null) 'behaviorHints': behaviorHints,
         if (subtitles != null && subtitles!.isNotEmpty) 'subtitles': subtitles,
       };
@@ -343,7 +351,9 @@ class ScraperEngine {
         final isCached = torrentHash != null && torrentCacheMap[torrentHash] == true;
         if (!isCached) continue;
 
-        final sourceName = resolveSourceName(src.providerId ?? '', src.providerName ?? src.name);
+        final sourceInfo = resolveSourceDetails(src.providerId ?? '', src.providerName ?? src.name, rawUrl);
+        final sourceName = sourceInfo['display']!;
+        final siteDomain = sourceInfo['domain']!;
         final q = src.quality ?? '';
         final qLabel = q.isNotEmpty ? q : 'HD';
         final badge = src.getAudioBadge(mediaTitle: meta.title) ?? '';
@@ -361,6 +371,7 @@ class ScraperEngine {
           fileSize: src.fileSize,
           providerName: '$sourceName (TorBox Cached)',
           sourceName: sourceName,
+          siteDomain: siteDomain,
           hostName: '⚡ TorBox Cloud CDN ($sourceName)',
           ottPlatform: meta.ottPlatform,
           isCached: true,
@@ -375,6 +386,8 @@ class ScraperEngine {
           url: torboxPlayUrl,
           behaviorHints: const {'notWebReady': false},
           provider: '$sourceName (TorBox Cached)',
+          site: siteDomain,
+          fileType: cachedEnriched['fileType'],
           quality: q,
           fileSize: cachedEnriched['fileSize'],
           subtitles: openSubtitlesList,
@@ -393,7 +406,9 @@ class ScraperEngine {
       final isTorboxCached = torboxCacheMap[rawUrl] == true;
 
       // Clean Source & Host names
-      final sourceName = resolveSourceName(src.providerId ?? '', src.providerName ?? src.name);
+      final sourceInfo = resolveSourceDetails(src.providerId ?? '', src.providerName ?? src.name, rawUrl);
+      final sourceName = sourceInfo['display']!;
+      final siteDomain = sourceInfo['domain']!;
       final hostName = detectStreamHost(rawUrl, isCached: isTorboxCached);
 
       // Smart Deduplication across scrapers
@@ -406,6 +421,8 @@ class ScraperEngine {
             url: existing.url,
             behaviorHints: existing.behaviorHints,
             provider: '${existing.provider} + $sourceName',
+            site: existing.site ?? siteDomain,
+            fileType: existing.fileType,
             quality: existing.quality,
             fileSize: existing.fileSize,
             subtitles: existing.subtitles,
@@ -471,6 +488,7 @@ class ScraperEngine {
         fileSize: src.fileSize,
         providerName: sourceName,
         sourceName: sourceName,
+        siteDomain: siteDomain,
         hostName: hostName,
         ottPlatform: meta.ottPlatform,
         isCached: false,
@@ -507,6 +525,7 @@ class ScraperEngine {
           fileSize: src.fileSize,
           providerName: '$sourceName (TorBox Cached)',
           sourceName: sourceName,
+          siteDomain: siteDomain,
           hostName: '⚡ TorBox Cloud CDN ($cachedHost)',
           ottPlatform: meta.ottPlatform,
           isCached: true,
@@ -521,6 +540,8 @@ class ScraperEngine {
           url: torboxPlayUrl,
           behaviorHints: const {'notWebReady': false},
           provider: '$sourceName ($cachedHost)',
+          site: siteDomain,
+          fileType: cachedEnriched['fileType'],
           quality: q,
           fileSize: cachedEnriched['fileSize'],
           subtitles: subList,
@@ -536,6 +557,8 @@ class ScraperEngine {
             url: directStreamUrl,
             behaviorHints: directBehaviorHints,
             provider: sourceName,
+            site: siteDomain,
+            fileType: directEnriched['fileType'],
             quality: q,
             fileSize: directEnriched['fileSize'],
             subtitles: subList,
@@ -559,6 +582,7 @@ class ScraperEngine {
           fileSize: src.fileSize,
           providerName: sourceName,
           sourceName: sourceName,
+          siteDomain: siteDomain,
           hostName: hostName,
           ottPlatform: meta.ottPlatform,
           isCached: false,
@@ -573,6 +597,8 @@ class ScraperEngine {
           url: cachePlayUrl,
           behaviorHints: const {'notWebReady': false},
           provider: '$sourceName ($hostName)',
+          site: siteDomain,
+          fileType: cacheEnriched['fileType'],
           quality: q,
           fileSize: cacheEnriched['fileSize'],
           subtitles: subList,
@@ -589,6 +615,8 @@ class ScraperEngine {
             url: directStreamUrl,
             behaviorHints: directBehaviorHints,
             provider: sourceName,
+            site: siteDomain,
+            fileType: directEnriched['fileType'],
             quality: q,
             fileSize: directEnriched['fileSize'],
             subtitles: subList,
@@ -607,6 +635,8 @@ class ScraperEngine {
             url: directStreamUrl,
             behaviorHints: directBehaviorHints,
             provider: sourceName,
+            site: siteDomain,
+            fileType: directEnriched['fileType'],
             quality: q,
             fileSize: directEnriched['fileSize'],
             subtitles: subList,
@@ -625,6 +655,8 @@ class ScraperEngine {
             url: directStreamUrl,
             behaviorHints: directBehaviorHints,
             provider: sourceName,
+            site: siteDomain,
+            fileType: directEnriched['fileType'],
             quality: q,
             fileSize: directEnriched['fileSize'],
             subtitles: subList,
@@ -736,8 +768,98 @@ class ScraperEngine {
     return false;
   }
 
-  /// Maps scraper IDs and names to clear website and scraper source labels
-  static String resolveSourceName(String providerId, [String? providerName]) {
+  static const Map<String, String> siteDomainMap = {
+    'fourkhdhub': '4khdhub.org',
+    'vegamovies': 'vegamovies.im',
+    'uhdmovies': 'uhdmovies.vip',
+    'bollyflix': 'bollyflix.org',
+    'bolly4u': 'bolly4u.org',
+    'hdhub4u': 'hdhub4u.tv',
+    'moviesdrive': 'moviesdrive.world',
+    'moviesmod': 'moviesmod.org',
+    'multimovies': 'multimovies.click',
+    'dramacool': 'dramacool.ch',
+    'dramaday': 'dramaday.me',
+    'animepahe': 'animepahe.ru',
+    'gogoanime': 'anitaku.to',
+    'hianime': 'hianime.to',
+    'kissasian': 'kissasian.lu',
+    'kisskh': 'kisskh.co',
+    'lookmovie': 'lookmovie2.to',
+    'vadapav': 'vadapav.mov',
+    'yomovies': 'yomovies.ac',
+    'cinesu': 'cinesu.com',
+    'cinesrc': 'cinesrc.com',
+    'cinejoy': 'cinejoy.to',
+    'flaxmovies': 'flaxmovies.org',
+    'fsharetv': 'fsharetv.com',
+    'fsonic': 'fsonic.org',
+    'fsonline': 'fsonline.to',
+    'hindmoviez': 'hindmoviez.to',
+    'playdesi': 'playdesi.net',
+    'toonstream': 'toonstream.in',
+    'vuflix': 'vuflix.org',
+    'downloadeverything': 'downloadeverything.com',
+    'videasy': 'videasy.net',
+    'vidsrc': 'vidsrc.to',
+    'vidlink': 'vidlink.pro',
+    'vidcore': 'vidcore.org',
+    'vidfast': 'vidfast.org',
+    'vidrock': 'vidrock.org',
+    'vidup': 'vidup.org',
+    'vidvault': 'vidvault.org',
+    'vidzee': 'vidzee.org',
+    'vixsrc': 'vixsrc.to',
+    'flystream': 'flystream.org',
+    'rivestream': 'rivestream.org',
+    'movy': 'movy.to',
+    'dulo': 'dulo.to',
+    'frame': 'frame.to',
+    'hexa': 'hexa.to',
+    'lmscript': 'lmscript.org',
+    'mapple': 'mapple.tv',
+    'megasource': 'megasource.to',
+    'meowtv': 'meowtv.org',
+    'movienight': 'movienight.cc',
+    'multiembed': 'multiembed.mov',
+    'nova': 'nova.to',
+    'peestream': 'peestream.com',
+    'purstream': 'purstream.to',
+    'xdownloader': 'xdownloader.org',
+    'xpass': 'xpass.org',
+    'bcine': 'bcine.org',
+    'a111477': 'st.111477.xyz',
+    '111477': 'st.111477.xyz',
+    'vidgod': 'vidgod.org',
+    'zxcstream': 'zxcstream.org',
+    'archive': 'archive.org',
+    'dailymotion': 'dailymotion.com',
+    'youtube': 'youtube.com',
+    'vimeo': 'vimeo.com',
+    'yts': 'yts.mx',
+    'torrentgalaxy': 'torrentgalaxy.to',
+    'eztv': 'eztv.re',
+    'nyaa': 'nyaa.si',
+    'knaben': 'knaben.org',
+    'tamilmv': '1tamilmv.tf',
+    'asiandrama': 'asiandrama.me',
+    'coolmovies': 'coolmovies.to',
+  };
+
+  static String extractDomain(String url) {
+    if (url.isEmpty) return '';
+    try {
+      final uri = Uri.parse(url);
+      final host = uri.host.toLowerCase();
+      if (host.isNotEmpty && !host.contains('127.0.0.1') && !host.contains('localhost')) {
+        return host.replaceFirst(RegExp(r'^www\.'), '');
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  /// Resolves scraper and website details (name, domain, full display)
+  static Map<String, String> resolveSourceDetails(String providerId, [String? providerName, String? url]) {
     final cleanId = providerId.toLowerCase().replaceAll('scraper', '').trim();
     const siteMap = {
       'fourkhdhub': '4KHDHub',
@@ -800,15 +922,36 @@ class ScraperEngine {
       'xpass': 'XPass',
       'bcine': 'BCine',
       'a111477': '111477',
+      '111477': '111477',
       'vidgod': 'VidGod',
       'zxcstream': 'ZxcStream',
       'archive': 'Archive.org',
       'dailymotion': 'Dailymotion',
       'youtube': 'YouTube',
       'vimeo': 'Vimeo',
+      'yts': 'YTS',
+      'torrentgalaxy': 'TorrentGalaxy',
+      'eztv': 'EZTV',
+      'nyaa': 'Nyaa',
+      'knaben': 'Knaben',
+      'tamilmv': '1TamilMV',
+      'asiandrama': 'AsianDrama',
+      'coolmovies': 'CoolMovies',
     };
 
     String baseName = siteMap[cleanId] ?? '';
+    String domain = siteDomainMap[cleanId] ?? '';
+
+    if (url != null && url.isNotEmpty) {
+      final uDomain = extractDomain(url);
+      if (uDomain.isNotEmpty &&
+          !uDomain.contains('cloudflare') &&
+          !uDomain.contains('torbox') &&
+          !uDomain.contains('workers.dev')) {
+        if (domain.isEmpty) domain = uDomain;
+      }
+    }
+
     if (baseName.isEmpty) {
       if (providerName != null && providerName.isNotEmpty) {
         final clean = providerName
@@ -826,6 +969,7 @@ class ScraperEngine {
     }
 
     // Preserve sub-server information if provided
+    String display = baseName;
     if (providerName != null && providerName.isNotEmpty) {
       var sub = providerName
           .replaceAll(RegExp(r'PlayTorrio(HTTP)?|MegaScraper|Unbound|HostHound', caseSensitive: false), '')
@@ -836,13 +980,27 @@ class ScraperEngine {
       if (sub.isNotEmpty && sub.toLowerCase() != baseName.toLowerCase() && sub.toLowerCase() != 'hostreamio') {
         if (sub.toLowerCase().contains(baseName.toLowerCase()) ||
             baseName.toLowerCase().contains(sub.toLowerCase().replaceAll(RegExp(r'\s*-\s*.*'), ''))) {
-          return sub;
+          display = sub;
+        } else {
+          display = '$baseName ($sub)';
         }
-        return '$baseName ($sub)';
       }
     }
 
-    return baseName;
+    if (domain.isNotEmpty && !display.toLowerCase().contains(domain.toLowerCase())) {
+      display = '$display ($domain)';
+    }
+
+    return {
+      'name': baseName,
+      'domain': domain,
+      'display': display,
+    };
+  }
+
+  /// Maps scraper IDs and names to clear website and scraper source labels
+  static String resolveSourceName(String providerId, [String? providerName, String? url]) {
+    return resolveSourceDetails(providerId, providerName, url)['display']!;
   }
 
   /// Detects where the file or stream is hosted (filehoster, cyberlocker, or CDN host)

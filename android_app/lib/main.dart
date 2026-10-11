@@ -149,6 +149,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   String? _selectedEpisodeId;
   bool _isDtddExpanded = false;
   bool _isLoadingDtdd = false;
+  int _dtddDisplayLimit = 10;
 
   bool _isScrapingStreams = false;
   List<Map<String, dynamic>> _scrapedStreams = [];
@@ -3669,12 +3670,35 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     )
                   else ...[
                     if (triggers.isNotEmpty) ...[
-                      const Text(
-                        'Community Trigger Warnings:',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFFF85149)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Community Trigger Warnings (${triggers.length}):',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFFF85149)),
+                          ),
+                          if (triggers.length > 10)
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (_dtddDisplayLimit >= triggers.length) {
+                                    _dtddDisplayLimit = 10;
+                                  } else {
+                                    _dtddDisplayLimit = triggers.length;
+                                  }
+                                });
+                              },
+                              child: Text(
+                                _dtddDisplayLimit >= triggers.length
+                                    ? 'Show Less'
+                                    : 'Show All (${triggers.length})',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF58A6FF)),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 6),
-                      ...triggers.take(8).map((t) {
+                      ...triggers.take(_dtddDisplayLimit).map((t) {
                         final topic = t['topic']?.toString() ?? '';
                         final yes = t['yes'] ?? 0;
                         final no = t['no'] ?? 0;
@@ -3711,7 +3735,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                                         child: Text(
                                           comment,
                                           style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontStyle: FontStyle.italic),
-                                          maxLines: 2,
+                                          maxLines: 4,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -3722,12 +3746,35 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                           ),
                         );
                       }),
+                      if (triggers.length > _dtddDisplayLimit)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, bottom: 8),
+                          child: Center(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF30363D)),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.expand_more_rounded, size: 16, color: Color(0xFF58A6FF)),
+                              label: Text(
+                                'Show ${triggers.length - _dtddDisplayLimit} More Triggers (All ${triggers.length})',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF58A6FF), fontWeight: FontWeight.bold),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _dtddDisplayLimit = triggers.length;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
                     ],
                     if (safe.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
-                        'Safe Topics: ${safe.take(5).map((s) => s['topic']?.toString() ?? '').where((s) => s.isNotEmpty).join(', ')}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF3FB950)),
+                        'Safe Topics (${safe.length}): ${safe.map((s) => s['topic']?.toString() ?? '').where((s) => s.isNotEmpty).join(', ')}',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF3FB950), height: 1.3),
                       ),
                     ],
                   ],
@@ -4799,35 +4846,37 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
             // Extract scene filename and extra source/host metadata cleanly
             final rawLines = title.split(RegExp(r'[\r\n]+')).map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-            final sceneFilename = rawLines.isNotEmpty
+            var sceneFilename = rawLines.isNotEmpty
                 ? rawLines.first.split(' • ').first.trim()
                 : (name.isNotEmpty ? name.split('\n').first.trim() : 'Stream Link');
 
+            // Strip trailing junk/codes/sizes accidentally left after video container extension (e.g. "...mkv .a11 19.6 GB")
+            final extMatch = RegExp(r'^(.*?\.(?:mkv|mp4|avi|webm|ts|mov))\b.*$', caseSensitive: false).firstMatch(sceneFilename);
+            if (extMatch != null) {
+              sceneFilename = extMatch.group(1)!;
+            }
+
             final metaItems = <String>[];
+            final displaySource = _resolveStreamSourceDisplay(s, rawLines);
+            if (displaySource.isNotEmpty) {
+              metaItems.add('🌐 Scraper / Site: $displaySource');
+            }
+
+            final displayHost = _resolveStreamHostDisplay(s, rawLines);
+            if (displayHost.isNotEmpty) {
+              metaItems.add('📦 Host / CDN: $displayHost');
+            }
+
             for (final line in rawLines) {
               for (final part in line.split(' • ')) {
                 final trimmed = part.trim();
                 if (trimmed.isEmpty) continue;
-                if (trimmed.contains('Source:') ||
-                    trimmed.contains('Host:') ||
-                    trimmed.contains('Provider:') ||
-                    trimmed.contains('mirrored') ||
-                    trimmed.contains('Broadcast')) {
+                if (trimmed.contains('mirrored') || trimmed.contains('Broadcast')) {
                   if (!metaItems.contains(trimmed)) {
                     metaItems.add(trimmed);
                   }
                 }
               }
-            }
-
-            // Fallback to stream provider and host if not in title text
-            final provider = s['provider']?.toString() ?? '';
-            final host = s['hoster']?.toString() ?? s['host']?.toString() ?? '';
-            if (!metaItems.any((m) => m.contains('Source:') || m.contains('Provider:')) && provider.isNotEmpty) {
-              metaItems.add('🌐 Source: $provider');
-            }
-            if (!metaItems.any((m) => m.contains('Host:')) && host.isNotEmpty) {
-              metaItems.add('📦 Host: $host');
             }
 
             final metaParts = metaItems.join(' • ');
@@ -4860,7 +4909,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     const SizedBox(height: 7),
 
                     // 2. Built-in Fusion Badges!
-                    _buildFusionBadgesRow(s),
+                    _buildFusionBadgesRow(s, sceneFilename),
                     const SizedBox(height: 7),
 
                     // 3. Source & Host metadata
@@ -5000,12 +5049,197 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     );
   }
 
-  Widget _buildFusionBadgesRow(Map<String, dynamic> s) {
+  static final Map<String, String> _siteDomainRegistry = {
+    'fourkhdhub': '4khdhub.org',
+    'vegamovies': 'vegamovies.im',
+    'uhdmovies': 'uhdmovies.vip',
+    'bollyflix': 'bollyflix.org',
+    'bolly4u': 'bolly4u.org',
+    'hdhub4u': 'hdhub4u.tv',
+    'moviesdrive': 'moviesdrive.world',
+    'moviesmod': 'moviesmod.org',
+    'multimovies': 'multimovies.click',
+    'dramacool': 'dramacool.ch',
+    'dramaday': 'dramaday.me',
+    'animepahe': 'animepahe.ru',
+    'gogoanime': 'anitaku.to',
+    'hianime': 'hianime.to',
+    'kissasian': 'kissasian.lu',
+    'kisskh': 'kisskh.co',
+    'lookmovie': 'lookmovie2.to',
+    'vadapav': 'vadapav.mov',
+    'yomovies': 'yomovies.ac',
+    'cinesu': 'cinesu.com',
+    'cinesrc': 'cinesrc.com',
+    'cinejoy': 'cinejoy.to',
+    'flaxmovies': 'flaxmovies.org',
+    'fsharetv': 'fsharetv.com',
+    'fsonic': 'fsonic.org',
+    'fsonline': 'fsonline.to',
+    'hindmoviez': 'hindmoviez.to',
+    'playdesi': 'playdesi.net',
+    'toonstream': 'toonstream.in',
+    'vuflix': 'vuflix.org',
+    'downloadeverything': 'downloadeverything.com',
+    'videasy': 'videasy.net',
+    'vidsrc': 'vidsrc.to',
+    'vidlink': 'vidlink.pro',
+    'vidcore': 'vidcore.org',
+    'vidfast': 'vidfast.org',
+    'vidrock': 'vidrock.org',
+    'vidup': 'vidup.org',
+    'vidvault': 'vidvault.org',
+    'vidzee': 'vidzee.org',
+    'vixsrc': 'vixsrc.to',
+    'flystream': 'flystream.org',
+    'rivestream': 'rivestream.org',
+    'movy': 'movy.to',
+    'dulo': 'dulo.to',
+    'frame': 'frame.to',
+    'hexa': 'hexa.to',
+    'lmscript': 'lmscript.org',
+    'mapple': 'mapple.tv',
+    'megasource': 'megasource.to',
+    'meowtv': 'meowtv.org',
+    'movienight': 'movienight.cc',
+    'multiembed': 'multiembed.mov',
+    'nova': 'nova.to',
+    'peestream': 'peestream.com',
+    'purstream': 'purstream.to',
+    'xdownloader': 'xdownloader.org',
+    'xpass': 'xpass.org',
+    'bcine': 'bcine.org',
+    'a111477': 'st.111477.xyz',
+    '111477': 'st.111477.xyz',
+    'vidgod': 'vidgod.org',
+    'zxcstream': 'zxcstream.org',
+    'archive': 'archive.org',
+    'dailymotion': 'dailymotion.com',
+    'youtube': 'youtube.com',
+    'vimeo': 'vimeo.com',
+    'yts': 'yts.mx',
+    'torrentgalaxy': 'torrentgalaxy.to',
+    'eztv': 'eztv.re',
+    'nyaa': 'nyaa.si',
+    'knaben': 'knaben.org',
+    'tamilmv': '1tamilmv.tf',
+    'asiandrama': 'asiandrama.me',
+    'coolmovies': 'coolmovies.to',
+  };
+
+  static String _cleanFileSizeString(String sizeStr) {
+    final match = RegExp(r'^([0-9\.]+)\s*(GB|MB|GiB|MiB)$', caseSensitive: false).firstMatch(sizeStr.trim());
+    if (match != null) {
+      final val = double.tryParse(match.group(1)!);
+      final unit = match.group(2)!.toUpperCase();
+      if (val != null) {
+        if (unit.contains('M') && val >= 1000) {
+          return '${(val / 1024).toStringAsFixed(1)} GB';
+        }
+        if (val.truncateToDouble() == val) {
+          return '${val.toInt()} $unit';
+        }
+        return '${val.toStringAsFixed(1)} $unit';
+      }
+    }
+    return sizeStr;
+  }
+
+  String _detectStreamFileType(Map<String, dynamic> s, String sceneFilename) {
+    final explicit = s['fileType']?.toString().toUpperCase() ?? '';
+    if (explicit.isNotEmpty) return explicit;
+    final checkStr = '$sceneFilename ${s['underlyingUrl'] ?? ''} ${s['finalUrl'] ?? ''} ${s['cleanTitle'] ?? ''}'.toLowerCase();
+    if (checkStr.contains('.mkv')) return 'MKV';
+    if (checkStr.contains('.mp4')) return 'MP4';
+    if (checkStr.contains('.m3u8') || checkStr.contains('.mpd') || checkStr.contains('hls')) return 'HLS';
+    if (checkStr.contains('.webm')) return 'WEBM';
+    if (checkStr.contains('.avi')) return 'AVI';
+    if (checkStr.contains('.ts')) return 'TS';
+    return '';
+  }
+
+  String _resolveStreamSiteBadge(Map<String, dynamic> s) {
+    final explicitSite = s['site']?.toString().trim() ?? '';
+    if (explicitSite.isNotEmpty) return explicitSite;
+
+    final provider = s['provider']?.toString().trim() ?? '';
+    final cleanProvider = provider.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final entry in _siteDomainRegistry.entries) {
+      if (cleanProvider.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+
+    final underlying = (s['underlyingUrl'] ?? s['finalUrl'] ?? '').toString();
+    try {
+      final uri = Uri.parse(underlying);
+      final host = uri.host.toLowerCase();
+      if (host.isNotEmpty &&
+          !host.contains('127.0.0.1') &&
+          !host.contains('localhost') &&
+          !host.contains('cloudflare') &&
+          !host.contains('torbox')) {
+        return host.replaceFirst(RegExp(r'^www\.'), '');
+      }
+    } catch (_) {}
+
+    if (provider.isNotEmpty) {
+      return provider.replaceAll(RegExp(r'\s*\(.*?\)\s*'), '').trim();
+    }
+    return '';
+  }
+
+  String _resolveStreamSourceDisplay(Map<String, dynamic> s, List<String> rawLines) {
+    for (final line in rawLines) {
+      for (final part in line.split(' • ')) {
+        final trimmed = part.trim();
+        if (trimmed.startsWith('Source: ') || trimmed.startsWith('🌐 Source: ')) {
+          var clean = trimmed.replaceAll(RegExp(r'^🌐?\s*Source:\s*'), '').trim();
+          if (clean == '111477' || clean.startsWith('111477 ')) {
+            return '111477 (st.111477.xyz)';
+          }
+          final site = s['site']?.toString().trim() ?? '';
+          if (site.isNotEmpty && !clean.toLowerCase().contains(site.toLowerCase())) {
+            return '$clean ($site)';
+          }
+          return clean;
+        }
+      }
+    }
+
+    final provider = s['provider']?.toString().trim() ?? '';
+    final site = s['site']?.toString().trim() ?? _resolveStreamSiteBadge(s);
+    if (provider.isNotEmpty) {
+      if (site.isNotEmpty && !provider.toLowerCase().contains(site.toLowerCase())) {
+        return '$provider ($site)';
+      }
+      return provider;
+    }
+    if (site.isNotEmpty) return site;
+    return 'Direct Stream';
+  }
+
+  String _resolveStreamHostDisplay(Map<String, dynamic> s, List<String> rawLines) {
+    for (final line in rawLines) {
+      for (final part in line.split(' • ')) {
+        final trimmed = part.trim();
+        if (trimmed.startsWith('Host: ') || trimmed.startsWith('📦 Host: ')) {
+          return trimmed.replaceAll(RegExp(r'^📦?\s*Host:\s*'), '').trim();
+        }
+      }
+    }
+    final host = s['hoster']?.toString() ?? s['host']?.toString() ?? '';
+    if (host.isNotEmpty) return host;
+    if (s['isCached'] == true) return 'TorBox Cloud CDN';
+    return '';
+  }
+
+  Widget _buildFusionBadgesRow(Map<String, dynamic> s, [String sceneFilename = '']) {
     final rawName = s['cleanName']?.toString() ?? '';
     final rawTitle = s['cleanTitle']?.toString() ?? '';
     final isCached = s['isCached'] == true;
     final isCacheTag = s['isCache'] == true;
-    final combined = '$rawName $rawTitle'.toUpperCase();
+    final combined = '$rawName $rawTitle $sceneFilename'.toUpperCase();
     final badges = <Widget>[];
 
     // 1. Tier / Source
@@ -5017,7 +5251,32 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge('🌐 Direct Play', bg: const Color(0xFF1F6FEB), border: const Color(0xFF388BFD), textColor: const Color(0xFF79C0FF)));
     }
 
-    // 2. Resolution (Neon purple for 4K, Cyan for 1080p, Amber for 720p)
+    // 2. Scraper & Website Badge (e.g. 🌐 YTS.mx, 🌐 111477.xyz, 🌐 VegaMovies.im, etc.)
+    final siteBadge = _resolveStreamSiteBadge(s);
+    if (siteBadge.isNotEmpty) {
+      badges.add(_buildFusionBadge(
+        '🌐 $siteBadge',
+        bg: const Color(0xFF065F46),
+        border: const Color(0xFF34D399),
+        textColor: const Color(0xFF6EE7B7),
+      ));
+    }
+
+    // 3. Container / File Type Badge (MKV, MP4, HLS, WEBM, AVI)
+    final fileType = _detectStreamFileType(s, sceneFilename);
+    if (fileType.isNotEmpty) {
+      if (fileType == 'MKV') {
+        badges.add(_buildFusionBadge('MKV', bg: const Color(0xFF4F46E5), border: const Color(0xFF818CF8), textColor: const Color(0xFFA5B4FC), icon: Icons.video_file_rounded));
+      } else if (fileType == 'MP4') {
+        badges.add(_buildFusionBadge('MP4', bg: const Color(0xFF0284C7), border: const Color(0xFF38BDF8), textColor: const Color(0xFF7DD3FC), icon: Icons.video_file_rounded));
+      } else if (fileType == 'HLS') {
+        badges.add(_buildFusionBadge('HLS / M3U8', bg: const Color(0xFFD97706), border: const Color(0xFFFBBF24), textColor: const Color(0xFFFDE68A), icon: Icons.live_tv_rounded));
+      } else {
+        badges.add(_buildFusionBadge(fileType, bg: const Color(0xFF334155), border: const Color(0xFF64748B), textColor: const Color(0xFFCBD5E1), icon: Icons.video_file_rounded));
+      }
+    }
+
+    // 4. Resolution (Neon purple for 4K, Cyan for 1080p, Amber for 720p)
     if (combined.contains('4K') || combined.contains('2160P') || combined.contains('UHD')) {
       badges.add(_buildFusionBadge('4K UHD', bg: const Color(0xFF8957E5), border: const Color(0xFFD2A8FF), textColor: const Color(0xFFD2A8FF)));
     } else if (combined.contains('1080P') || combined.contains('[FHD]') || combined.contains('FHD')) {
@@ -5026,7 +5285,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge('720p HD', bg: const Color(0xFFD29922), border: const Color(0xFFE3B341), textColor: const Color(0xFFE3B341)));
     }
 
-    // 3. Quality / Release
+    // 5. Quality / Release
     if (combined.contains('REMUX')) {
       badges.add(_buildFusionBadge('REMUX', bg: const Color(0xFF6366F1), border: const Color(0xFFA5B4FC), textColor: const Color(0xFFA5B4FC)));
     } else if (combined.contains('BLURAY') || combined.contains('BLU-RAY')) {
@@ -5039,7 +5298,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge('HDRIP', bg: const Color(0xFF334155), border: const Color(0xFF64748B), textColor: const Color(0xFF94A3B8)));
     }
 
-    // 4. Visual (HDR / Dolby Vision)
+    // 6. Visual (HDR / Dolby Vision)
     if (combined.contains('DOLBY VISION') || combined.contains('[DV]') || combined.contains('DV')) {
       badges.add(_buildFusionBadge('DOLBY VISION', bg: const Color(0xFFC026D3), border: const Color(0xFFF472B6), textColor: const Color(0xFFF472B6)));
     }
@@ -5052,7 +5311,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge('10-BIT', bg: const Color(0xFF78350F), border: const Color(0xFFF59E0B), textColor: const Color(0xFFF59E0B)));
     }
 
-    // 5. Codec
+    // 7. Codec
     if (combined.contains('HEVC') || combined.contains('X265') || combined.contains('H.265') || combined.contains('H265')) {
       badges.add(_buildFusionBadge('HEVC / x265', bg: const Color(0xFF0D9488), border: const Color(0xFF2DD4BF), textColor: const Color(0xFF2DD4BF)));
     } else if (combined.contains('AV1')) {
@@ -5061,7 +5320,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge('x264', bg: const Color(0xFF475569), border: const Color(0xFF94A3B8), textColor: const Color(0xFFCBD5E1)));
     }
 
-    // 6. Audio
+    // 8. Audio
     if (combined.contains('ATMOS')) {
       badges.add(_buildFusionBadge('ATMOS', bg: const Color(0xFF059669), border: const Color(0xFF34D399), textColor: const Color(0xFF34D399)));
     } else if (combined.contains('TRUEHD')) {
@@ -5076,13 +5335,14 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge('AAC', bg: const Color(0xFF0D9488), border: const Color(0xFF2DD4BF), textColor: const Color(0xFF2DD4BF)));
     }
 
-    // 7. File Size (Prominent pink/rose pill with disk icon)
-    final fileSize = s['fileSize']?.toString() ?? '';
+    // 9. File Size (Prominent pink/rose pill with disk icon)
+    final rawSize = s['fileSize']?.toString() ?? '';
+    final fileSize = rawSize.isNotEmpty ? _cleanFileSizeString(rawSize) : '';
     if (fileSize.isNotEmpty) {
       badges.add(_buildFusionBadge(fileSize, bg: const Color(0xFFE11D48), border: const Color(0xFFFB7185), textColor: const Color(0xFFFB7185), icon: Icons.save_rounded));
     }
 
-    // 8. Stream delivery flags
+    // 10. Stream delivery flags
     if (combined.contains('HLS STREAM') || combined.contains('.M3U8')) {
       badges.add(_buildFusionBadge('HLS', bg: const Color(0xFF1E293B), border: const Color(0xFF475569), textColor: const Color(0xFF94A3B8)));
     }
@@ -5276,7 +5536,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           if (item is! Map) continue;
           final m = Map<String, dynamic>.from(item);
           final rawName = (m['name']?.toString() ?? '').replaceAll('\n', ' ');
-          final rawTitle = (m['title']?.toString() ?? '').replaceAll('\n', ' • ');
+          final rawTitle = (m['title']?.toString() ?? '');
           final rawUrl = m['url']?.toString() ?? '';
 
           String underlying = rawUrl;
@@ -5305,11 +5565,16 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           final is4K = rawName.contains('4K') || rawTitle.contains('[4K]') || rawTitle.contains('2160p');
           final is1080p = rawName.contains('1080p') || rawTitle.contains('[FHD]') || rawTitle.contains('1080p');
 
+          final provider = m['provider']?.toString() ?? '';
+          final site = m['site']?.toString() ?? '';
+          final fileType = m['fileType']?.toString() ?? '';
+
           // Extract or estimate fileSize
           String rawFileSize = m['fileSize']?.toString() ?? '';
           if (rawFileSize.isEmpty) {
             final sizeMatch = RegExp(r'💾\s*([0-9\.]+\s*(?:GB|MB|GiB|MiB))', caseSensitive: false).firstMatch(rawTitle) ??
-                RegExp(r'\b([0-9\.]+\s*(?:GB|MB|GiB|MiB))\b', caseSensitive: false).firstMatch(rawTitle);
+                RegExp(r'\b([0-9\.]+\s*(?:GB|MB|GiB|MiB))\b', caseSensitive: false).firstMatch(rawTitle) ??
+                RegExp(r'\b([0-9\.]+\s*(?:GB|MB|GiB|MiB))\b', caseSensitive: false).firstMatch(rawName);
             if (sizeMatch != null) {
               rawFileSize = sizeMatch.group(1) ?? '';
             } else if (is4K) {
@@ -5321,6 +5586,9 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             } else {
               rawFileSize = _selectedMediaType == 'series' ? '300 MB' : '650 MB';
             }
+          }
+          if (rawFileSize.isNotEmpty) {
+            rawFileSize = _cleanFileSizeString(rawFileSize);
           }
 
           // Use underlying URL as key to unify TorBox + Original links into a single card
@@ -5336,6 +5604,9 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             m['is4K'] = is4K;
             m['is1080p'] = is1080p;
             m['fileSize'] = rawFileSize;
+            m['fileType'] = fileType;
+            m['provider'] = provider;
+            m['site'] = site;
             if (rawUrl.contains('/torbox/play')) {
               m['torboxUrl'] = rawUrl;
             } else {
@@ -5352,6 +5623,15 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             if (is1080p) existing['is1080p'] = true;
             if ((existing['fileSize']?.toString() ?? '').isEmpty && rawFileSize.isNotEmpty) {
               existing['fileSize'] = rawFileSize;
+            }
+            if ((existing['fileType']?.toString() ?? '').isEmpty && fileType.isNotEmpty) {
+              existing['fileType'] = fileType;
+            }
+            if ((existing['site']?.toString() ?? '').isEmpty && site.isNotEmpty) {
+              existing['site'] = site;
+            }
+            if ((existing['provider']?.toString() ?? '').isEmpty && provider.isNotEmpty) {
+              existing['provider'] = provider;
             }
             if (rawUrl.contains('/torbox/play')) {
               existing['torboxUrl'] = rawUrl;
