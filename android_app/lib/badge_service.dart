@@ -479,8 +479,15 @@ class BadgeService {
     final languageMarkers = generateLanguageMarkers(detectedBadges);
     final allMarkers = '$technicalMarkers$languageMarkers';
 
+    // 4. Clean and preserve original file / release title
+    String cleanOriginalTitle = rawTitle.trim();
+    // Normalize newlines in original title
+    cleanOriginalTitle = cleanOriginalTitle.replaceAll(RegExp(r'\r?\n'), ' • ');
+
     final titleLines = [
       sceneFilename,
+      if (cleanOriginalTitle.isNotEmpty && cleanOriginalTitle != sceneFilename && !cleanOriginalTitle.contains('http'))
+        '📄 Release: $cleanOriginalTitle',
       if (details.isNotEmpty) details.join(' • '),
       sourceLine,
       '📦 Host: $effectiveHost',

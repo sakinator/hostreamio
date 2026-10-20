@@ -1,5 +1,5 @@
 // AUTO-GENERATED SCRAPER REGISTRY - DO NOT EDIT MANUALLY
-// Generated at: 2026-10-11T14:42:02.628484
+// Generated at: 2026-10-20T14:27:34.168031
 // Run "dart run tool/generate_registry.dart" or "pipeline/update.ps1" to regenerate.
 
 import 'upstream/services/scraper/stream_scraper.dart';
