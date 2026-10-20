@@ -5,6 +5,7 @@ import 'omdb_service.dart';
 import 'fanart_service.dart';
 import 'tvdb_service.dart';
 import 'badge_service.dart';
+import 'catalog_service.dart';
 
 class MediaMetadata {
   final String id;
@@ -590,6 +591,10 @@ class MetadataService {
 
   /// Fetches complete series catalog details including seasons and episodes.
   static Future<Map<String, dynamic>?> getSeriesDetails(String rawId) async {
+    if (rawId.startsWith('sd:') || rawId.startsWith('shortdrama:')) {
+      return CatalogService.instance.getMetaDetail('series', rawId);
+    }
+
     String baseId = rawId;
     if (baseId.contains(':')) {
       baseId = baseId.split(':')[0];
@@ -687,6 +692,9 @@ class MetadataService {
 
   /// Fetches complete media catalog details (movie or series) including poster, backdrop, synopsis, rating, and episodes.
   static Future<Map<String, dynamic>?> getMediaDetails(String rawId, {String type = 'movie'}) async {
+    if (rawId.startsWith('sd:') || rawId.startsWith('shortdrama:')) {
+      return CatalogService.instance.getMetaDetail('series', rawId);
+    }
     final cleanType = (type == 'series' || type == 'tv') ? 'series' : 'movie';
     if (cleanType == 'series') {
       return getSeriesDetails(rawId);

@@ -259,6 +259,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         'International Movies',
       ],
     },
+    'short_dramas': {
+      'label': '📱 Short Dramas',
+      'type': 'series',
+      'src': 'local',
+      'id': 'short_dramas',
+      'genres': [
+        'All',
+        'Trending Micro-Dramas',
+        'DramaBox Unlocked',
+        'ReelShort Hits',
+        'ShortMax & Sereal+',
+        'Billionaire Romance',
+        'Werewolf & Alpha',
+        'Revenge & CEO',
+      ],
+    },
   };
 
   @override

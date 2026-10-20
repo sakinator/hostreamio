@@ -448,6 +448,74 @@ class CatalogService {
     return [];
   }
 
+  // ── Short Dramas Curated List ──────────────────────────────────────────────
+  static const List<Map<String, dynamic>> shortDramaCuratedList = [
+    {
+      'id': 'sd:double_life_billionaire',
+      'name': 'The Double Life of My Billionaire Husband',
+      'poster': 'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg',
+      'genres': ['DramaBox', 'Billionaire Romance', 'Micro-Drama'],
+      'description': 'A sweet teacher marries an ordinary handyman who secretly happens to be the heir to the wealthiest family in the city.',
+      'episodes': 76,
+    },
+    {
+      'id': 'sd:forbidden_alpha',
+      'name': 'Fated to My Forbidden Alpha',
+      'poster': 'https://image.tmdb.org/t/p/w500/yF1Nm9r0JbX8s9oO2YVq4C9d0rQ.jpg',
+      'genres': ['ReelShort', 'Werewolf & Alpha', 'Micro-Drama'],
+      'description': 'Rejected by her true mate, she finds herself bound to the most feared lycan king in the realm.',
+      'episodes': 60,
+    },
+    {
+      'id': 'sd:never_divorce_secret_billionaire',
+      'name': 'Never Divorce a Secret Billionaire Heiress',
+      'poster': 'https://image.tmdb.org/t/p/w500/A1c9x7eQz2mZ0Wz8P4m8O6y8b2R.jpg',
+      'genres': ['DramaBox', 'Revenge & CEO', 'Micro-Drama'],
+      'description': 'After three years of concealed identity and silent servitude, she signs the divorce papers and reveals her empire.',
+      'episodes': 85,
+    },
+    {
+      'id': 'sd:contract_marriage_billionaire',
+      'name': 'Contract Marriage with the Ruthless CEO',
+      'poster': 'https://image.tmdb.org/t/p/w500/sF1D64eA20oB49W5X1T2n6m8b4V.jpg',
+      'genres': ['ShortMax & Sereal+', 'Billionaire Romance', 'Micro-Drama'],
+      'description': 'A one-year sham marriage turns upside down when the cold billionaire realizes his wife holds the key to his past.',
+      'episodes': 92,
+    },
+    {
+      'id': 'sd:hidden_alpha_queen',
+      'name': 'The Hidden Alpha Queen',
+      'poster': 'https://image.tmdb.org/t/p/w500/9PfY2aJm2n9R8k0L3m4p7N8x2yT.jpg',
+      'genres': ['ReelShort', 'Werewolf & Alpha', 'Micro-Drama'],
+      'description': 'Treated as an outcast rogue wolf, her true golden fur awakens as the celestial lunar eclipse arrives.',
+      'episodes': 68,
+    },
+    {
+      'id': 'sd:rebirth_of_mistreated_heiress',
+      'name': 'Rebirth of the Mistreated Heiress',
+      'poster': 'https://image.tmdb.org/t/p/w500/q7X0b3M9n2R8w1K4m5p7L8x9yT2.jpg',
+      'genres': ['DramaBox', 'Revenge & CEO', 'Micro-Drama'],
+      'description': 'Given a second chance at life, the betrayed heiress reclaims her inheritance and takes revenge on her ex-fiance.',
+      'episodes': 80,
+    },
+    {
+      'id': 'sd:spoiled_by_my_billionaire_boss',
+      'name': 'Spoiled by My Billionaire Boss',
+      'poster': 'https://image.tmdb.org/t/p/w500/x7X9b2M8n3R7w2K5m6p8L9x0yT3.jpg',
+      'genres': ['ShortMax & Sereal+', 'Billionaire Romance', 'Micro-Drama'],
+      'description': 'A clumsy executive assistant accidentally falls in love with the reclusive tech tycoon.',
+      'episodes': 72,
+    },
+    {
+      'id': 'sd:lycan_kings_rejected_bride',
+      'name': "The Lycan King's Rejected Bride",
+      'poster': 'https://image.tmdb.org/t/p/w500/z8Y1b3N9m4R8w3K6n7p9L0x1yU4.jpg',
+      'genres': ['ReelShort', 'Werewolf & Alpha', 'Micro-Drama'],
+      'description': 'Banished beyond the mountains, her scent lures the ancient midnight ruler who claims her as his eternal queen.',
+      'episodes': 74,
+    },
+  ];
+
   // ── Internet Archive Fetcher ────────────────────────────────────────────────
   /// Fetches vertical short and micro-dramas from curated aggregators
   Future<List<Map<String, dynamic>>> _fetchShortDramas({
@@ -455,72 +523,7 @@ class CatalogService {
     String? genre,
     int skip = 0,
   }) async {
-    final curatedList = [
-      {
-        'id': 'sd:double_life_billionaire',
-        'name': 'The Double Life of My Billionaire Husband',
-        'poster': 'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg',
-        'genres': ['DramaBox', 'Billionaire Romance', 'Micro-Drama'],
-        'description': 'A sweet teacher marries an ordinary handyman who secretly happens to be the heir to the wealthiest family in the city.',
-        'episodes': 76,
-      },
-      {
-        'id': 'sd:forbidden_alpha',
-        'name': 'Fated to My Forbidden Alpha',
-        'poster': 'https://image.tmdb.org/t/p/w500/yF1Nm9r0JbX8s9oO2YVq4C9d0rQ.jpg',
-        'genres': ['ReelShort', 'Werewolf & Alpha', 'Micro-Drama'],
-        'description': 'Rejected by her true mate, she finds herself bound to the most feared lycan king in the realm.',
-        'episodes': 60,
-      },
-      {
-        'id': 'sd:never_divorce_secret_billionaire',
-        'name': 'Never Divorce a Secret Billionaire Heiress',
-        'poster': 'https://image.tmdb.org/t/p/w500/A1c9x7eQz2mZ0Wz8P4m8O6y8b2R.jpg',
-        'genres': ['DramaBox', 'Revenge & CEO', 'Micro-Drama'],
-        'description': 'After three years of concealed identity and silent servitude, she signs the divorce papers and reveals her empire.',
-        'episodes': 85,
-      },
-      {
-        'id': 'sd:contract_marriage_billionaire',
-        'name': 'Contract Marriage with the Ruthless CEO',
-        'poster': 'https://image.tmdb.org/t/p/w500/sF1D64eA20oB49W5X1T2n6m8b4V.jpg',
-        'genres': ['ShortMax & Sereal+', 'Billionaire Romance', 'Micro-Drama'],
-        'description': 'A one-year sham marriage turns upside down when the cold billionaire realizes his wife holds the key to his past.',
-        'episodes': 92,
-      },
-      {
-        'id': 'sd:hidden_alpha_queen',
-        'name': 'The Hidden Alpha Queen',
-        'poster': 'https://image.tmdb.org/t/p/w500/9PfY2aJm2n9R8k0L3m4p7N8x2yT.jpg',
-        'genres': ['ReelShort', 'Werewolf & Alpha', 'Micro-Drama'],
-        'description': 'Treated as an outcast rogue wolf, her true golden fur awakens as the celestial lunar eclipse arrives.',
-        'episodes': 68,
-      },
-      {
-        'id': 'sd:rebirth_of_mistreated_heiress',
-        'name': 'Rebirth of the Mistreated Heiress',
-        'poster': 'https://image.tmdb.org/t/p/w500/q7X0b3M9n2R8w1K4m5p7L8x9yT2.jpg',
-        'genres': ['DramaBox', 'Revenge & CEO', 'Micro-Drama'],
-        'description': 'Given a second chance at life, the betrayed heiress reclaims her inheritance and takes revenge on her ex-fiance.',
-        'episodes': 80,
-      },
-      {
-        'id': 'sd:spoiled_by_my_billionaire_boss',
-        'name': 'Spoiled by My Billionaire Boss',
-        'poster': 'https://image.tmdb.org/t/p/w500/x7X9b2M8n3R7w2K5m6p8L9x0yT3.jpg',
-        'genres': ['ShortMax & Sereal+', 'Billionaire Romance', 'Micro-Drama'],
-        'description': 'A clumsy executive assistant accidentally falls in love with the reclusive tech tycoon.',
-        'episodes': 72,
-      },
-      {
-        'id': 'sd:lycan_kings_rejected_bride',
-        'name': "The Lycan King's Rejected Bride",
-        'poster': 'https://image.tmdb.org/t/p/w500/z8Y1b3N9m4R8w3K6n7p9L0x1yU4.jpg',
-        'genres': ['ReelShort', 'Werewolf & Alpha', 'Micro-Drama'],
-        'description': 'Banished beyond the mountains, her scent lures the ancient midnight ruler who claims her as his eternal queen.',
-        'episodes': 74,
-      },
-    ];
+    final curatedList = shortDramaCuratedList;
 
     var list = curatedList;
     if (genre != null && genre.isNotEmpty && genre != 'All') {
@@ -887,6 +890,48 @@ class CatalogService {
         'description': 'Vimeo Stream',
       };
       return await _enrichItem(rawMeta);
+    }
+
+    if (id.startsWith('sd:') || id.startsWith('shortdrama:')) {
+      final baseId = id.contains(':') && !id.startsWith('sd:')
+          ? id.split(':').take(2).join(':')
+          : (id.split(':').length > 2 ? id.split(':').take(2).join(':') : id);
+      final item = shortDramaCuratedList.firstWhere(
+        (it) => it['id'] == baseId || id.contains(it['id']!.toString().replaceFirst('sd:', '')),
+        orElse: () => {
+          'id': baseId,
+          'name': baseId.split(':').last.replaceAll('_', ' '),
+          'poster': 'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg',
+          'genres': ['Micro-Drama', 'Short Drama'],
+          'description': 'Vertical short drama mini-series.',
+          'episodes': 60,
+        },
+      );
+      final epsCount = (item['episodes'] as int?) ?? 60;
+      final episodesList = List.generate(epsCount, (idx) {
+        final epNum = idx + 1;
+        return {
+          'id': '${item['id']}:1:$epNum',
+          'season': 1,
+          'episode': epNum,
+          'name': 'Episode $epNum',
+          'thumbnail': item['poster'],
+          'overview': 'Episode $epNum of ${item['name']}',
+        };
+      });
+      return {
+        'id': id,
+        'type': 'series',
+        'name': item['name'],
+        'poster': item['poster'],
+        'background': item['poster'],
+        'description': item['description'],
+        'genres': item['genres'],
+        'seasons': [1],
+        'episodesBySeason': {
+          '1': episodesList,
+        },
+      };
     }
 
     return null;
