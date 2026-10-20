@@ -300,7 +300,7 @@ class CatalogService {
       print('[CatalogService] Error fetching catalog $id: $e');
     }
 
-    if (items.isNotEmpty && id != 'iptv_global') {
+    if (items.isNotEmpty && id != 'iptv_global' && id != 'short_dramas') {
       try {
         final enriched = await Future.wait(
           items.map((it) => _enrichItem(it)),
@@ -1307,6 +1307,10 @@ class CatalogService {
   }
 
   Future<Map<String, dynamic>> _enrichItem(Map<String, dynamic> item) async {
+    final id = item['id']?.toString() ?? '';
+    if (id.startsWith('sd:') || id.startsWith('shortdrama:')) {
+      return item;
+    }
     final rawName = item['name']?.toString() ?? '';
     if (rawName.isEmpty) return item;
 
