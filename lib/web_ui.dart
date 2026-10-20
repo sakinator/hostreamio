@@ -1946,15 +1946,28 @@ class WebUI {
     <!-- ═══════════════════ CATALOG BROWSER ═══════════════════ -->
     <div class="card" id="catalogBrowserCard" style="margin-bottom:16px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-        <h2 style="margin:0;">🗂️ Browse Catalogs</h2>
-        <span style="font-size:0.78rem; color:var(--text-muted);">Click any title to instantly load streams ↓</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <h2 style="margin:0;">🗂️ Browse Catalogs</h2>
+          <span style="font-size:0.78rem; color:var(--text-muted);">Click any title to instantly load streams ↓</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label for="catalogSortSelect" style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Sort By:</label>
+          <select id="catalogSortSelect" onchange="onCatalogSortChange(this.value)" style="background:var(--bg-input, #161B26); color:#fff; border:1px solid var(--border, #2C3246); border-radius:8px; padding:4px 10px; font-size:0.82rem; font-weight:600; cursor:pointer;">
+            <option value="new" selected>✨ New Digital Releases</option>
+            <option value="trending">🔥 Trending Now</option>
+            <option value="popular">⭐ Most Popular</option>
+            <option value="top_rated">🏆 Top Rated</option>
+          </select>
+        </div>
       </div>
 
       <!-- Catalog Sub-Tabs -->
       <div id="catalogTabNav" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border);">
         <button class="stream-filter-chip active" id="ctab-trending-movie" onclick="switchCatalogTab('trending-movie')">🔥 Trending Movies</button>
         <button class="stream-filter-chip" id="ctab-trending-series" onclick="switchCatalogTab('trending-series')">📺 Trending Series</button>
-        <button class="stream-filter-chip" id="ctab-short_dramas" onclick="switchCatalogTab('short_dramas')">📱 Short Dramas</button>
+        <button class="stream-filter-chip" id="ctab-hindi_movies" onclick="switchCatalogTab('hindi_movies')">🇮🇳 Hindi Movies</button>
+        <button class="stream-filter-chip" id="ctab-hindi_series" onclick="switchCatalogTab('hindi_series')">🇮🇳 Hindi Series</button>
+        <button class="stream-filter-chip" id="ctab-asian_dramas" onclick="switchCatalogTab('asian_dramas')">🎎 Asian & Short Dramas</button>
         <button class="stream-filter-chip" id="ctab-yt_indian" onclick="switchCatalogTab('yt_indian')">🎬 YouTube Indian</button>
         <button class="stream-filter-chip" id="ctab-yt_international" onclick="switchCatalogTab('yt_international')">🌍 YouTube Intl</button>
         <button class="stream-filter-chip" id="ctab-vimeo_picks" onclick="switchCatalogTab('vimeo_picks')">🎥 Vimeo</button>
@@ -3149,6 +3162,7 @@ class WebUI {
     //  CATALOG BROWSER
     // ════════════════════════════════════════════════════════════
     let _activeCatalogTab = 'trending-movie';
+    let _catalogSortFilter = 'new';
     let _catalogSkip = 0;
     let _catalogItems = [];
     let _catalogActiveGenre = 'All';
@@ -3156,8 +3170,14 @@ class WebUI {
     const _catalogMeta = {
       'trending-movie':    { label:'🔥 Trending Movies',    type:'movie',  src:'cinemeta', id:'top' },
       'trending-series':   { label:'📺 Trending Series',    type:'series', src:'cinemeta', id:'top' },
-      'short_dramas':      { label:'📱 Short Dramas',       type:'series', src:'local',    id:'short_dramas',
-        genres:['All','Trending Micro-Dramas','DramaBox Unlocked','ReelShort Hits','ShortMax & Sereal+','Billionaire Romance','Werewolf & Alpha','Revenge & CEO'] },
+      'hindi_movies':      { label:'🇮🇳 Hindi Movies',       type:'movie',  src:'local',    id:'hindi_movies',
+        genres:['All','Bollywood Blockbusters','Action & Thriller','Comedy & Family','Romance & Drama','South Hindi Dubbed','Classic Bollywood'] },
+      'hindi_series':      { label:'🇮🇳 Hindi Series',       type:'series', src:'local',    id:'hindi_series',
+        genres:['All','Trending OTT Series','Crime & Thriller','Action & Drama','Comedy & Family','Mystery & Suspense'] },
+      'asian_dramas':      { label:'🎎 Asian & Short Dramas',type:'series', src:'local',    id:'asian_dramas',
+        genres:['All','Trending K-Dramas','Chinese Dramas (C-Drama)','Anime & Donghua','Vertical Micro-Dramas','DramaBox Unlocked','ReelShort Hits','ShortMax & Sereal+','Billionaire Romance','Werewolf & Alpha','Revenge & CEO'] },
+      'short_dramas':      { label:'📱 Short Dramas',       type:'series', src:'local',    id:'asian_dramas',
+        genres:['All','Trending K-Dramas','Chinese Dramas (C-Drama)','Anime & Donghua','Vertical Micro-Dramas','DramaBox Unlocked','ReelShort Hits','ShortMax & Sereal+','Billionaire Romance','Werewolf & Alpha','Revenge & CEO'] },
       'yt_indian':         { label:'🎬 YouTube Indian',      type:'movie',  src:'local',    id:'yt_indian',
         genres:['All','Bollywood Full Movies','South Hindi Dubbed','Indian Web Series','Classic Hindi','Comedy Hindi Movies'] },
       'yt_international':  { label:'🌍 YouTube Intl',        type:'movie',  src:'local',    id:'yt_international',
@@ -3172,6 +3192,13 @@ class WebUI {
 
     function initCatalogBrowser() {
       switchCatalogTab('trending-movie');
+    }
+
+    function onCatalogSortChange(val) {
+      _catalogSortFilter = val || 'new';
+      _catalogSkip = 0;
+      _catalogItems = [];
+      loadCatalog(true);
     }
 
     function switchCatalogTab(tabKey) {
@@ -3250,7 +3277,8 @@ class WebUI {
           }));
         } else {
           const genre = (_catalogActiveGenre && _catalogActiveGenre !== 'All') ? '&genre=' + encodeURIComponent(_catalogActiveGenre) : '';
-          const url = '/catalog/' + meta.type + '/' + meta.id + '/skip=' + _catalogSkip + genre + '.json';
+          const sort = '&sort=' + encodeURIComponent(_catalogSortFilter);
+          const url = '/catalog/' + meta.type + '/' + meta.id + '/skip=' + _catalogSkip + genre + sort + '.json';
           const res = await fetch(url);
           if (!res.ok) throw new Error('Local catalog HTTP ' + res.status);
           const data = await res.json();

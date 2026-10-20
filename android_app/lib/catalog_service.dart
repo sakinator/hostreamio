@@ -23,6 +23,7 @@ class CatalogService {
 
   static final Map<String, dynamic> _cache = {};
   static final Map<String, Map<String, dynamic>> _enrichmentCache = {};
+  static final Map<String, Map<String, dynamic>> dynamicShortDramas = {};
 
   static const Set<String> _nsfwKeywords = {
     'porn',
@@ -194,9 +195,9 @@ class CatalogService {
         ],
       },
       {
-        'type': 'series',
-        'id': 'short_dramas',
-        'name': '📱 Vertical Short & Micro-Dramas',
+        'type': 'movie',
+        'id': 'hindi_movies',
+        'name': '🇮🇳 Hindi Movies',
         'posterShape': 'poster',
         'extra': [
           {'name': 'search', 'isRequired': false},
@@ -204,7 +205,55 @@ class CatalogService {
             'name': 'genre',
             'options': [
               'All',
-              'Trending Micro-Dramas',
+              'Bollywood Blockbusters',
+              'Action & Thriller',
+              'Comedy & Family',
+              'Romance & Drama',
+              'South Hindi Dubbed',
+              'Classic Bollywood',
+            ],
+            'isRequired': false,
+          },
+          {'name': 'skip', 'isRequired': false},
+        ],
+      },
+      {
+        'type': 'series',
+        'id': 'hindi_series',
+        'name': '🇮🇳 Hindi Series',
+        'posterShape': 'poster',
+        'extra': [
+          {'name': 'search', 'isRequired': false},
+          {
+            'name': 'genre',
+            'options': [
+              'All',
+              'Trending OTT Series',
+              'Crime & Thriller',
+              'Action & Drama',
+              'Comedy & Family',
+              'Mystery & Suspense',
+            ],
+            'isRequired': false,
+          },
+          {'name': 'skip', 'isRequired': false},
+        ],
+      },
+      {
+        'type': 'series',
+        'id': 'asian_dramas',
+        'name': '🎎 Asian & Short Dramas',
+        'posterShape': 'poster',
+        'extra': [
+          {'name': 'search', 'isRequired': false},
+          {
+            'name': 'genre',
+            'options': [
+              'All',
+              'Trending K-Dramas',
+              'Chinese Dramas (C-Drama)',
+              'Anime & Donghua',
+              'Vertical Micro-Dramas',
               'DramaBox Unlocked',
               'ReelShort Hits',
               'ShortMax & Sereal+',
@@ -271,9 +320,10 @@ class CatalogService {
     required String id,
     String? search,
     String? genre,
+    String sort = 'new',
     int skip = 0,
   }) async {
-    final cacheKey = '$id:$search:$genre:$skip';
+    final cacheKey = '$id:$search:$genre:$sort:$skip';
     if (_cache.containsKey(cacheKey)) {
       return List<Map<String, dynamic>>.from(_cache[cacheKey]);
     }
@@ -281,7 +331,13 @@ class CatalogService {
     List<Map<String, dynamic>> items = [];
 
     try {
-      if (id == 'yt_indian') {
+      if (id == 'hindi_movies') {
+        items = await _fetchHindiMovies(search: search, genre: genre, sort: sort, skip: skip);
+      } else if (id == 'hindi_series') {
+        items = await _fetchHindiSeries(search: search, genre: genre, sort: sort, skip: skip);
+      } else if (id == 'asian_dramas' || id == 'short_dramas') {
+        items = await _fetchAsianDramas(search: search, genre: genre, sort: sort, skip: skip);
+      } else if (id == 'yt_indian') {
         items = await _fetchYouTubeIndian(search: search, genre: genre, skip: skip);
       } else if (id == 'yt_international') {
         items = await _fetchYouTubeInternational(search: search, genre: genre, skip: skip);
@@ -291,8 +347,6 @@ class CatalogService {
         items = await _fetchArchiveOrg(search: search, genre: genre, skip: skip);
       } else if (id == 'dm_movies') {
         items = await _fetchDailymotion(search: search, genre: genre, skip: skip);
-      } else if (id == 'short_dramas') {
-        items = await _fetchShortDramas(search: search, genre: genre, skip: skip);
       } else if (id == 'iptv_global') {
         items = await _fetchIptvCatalog(search: search, genre: genre, skip: skip);
       }
@@ -300,7 +354,12 @@ class CatalogService {
       print('[CatalogService] Error fetching catalog $id: $e');
     }
 
-    if (items.isNotEmpty && id != 'iptv_global' && id != 'short_dramas') {
+    if (items.isNotEmpty &&
+        id != 'iptv_global' &&
+        id != 'short_dramas' &&
+        id != 'asian_dramas' &&
+        id != 'hindi_movies' &&
+        id != 'hindi_series') {
       try {
         final enriched = await Future.wait(
           items.map((it) => _enrichItem(it)),
@@ -819,7 +878,7 @@ class CatalogService {
             if (title.isEmpty || img.isEmpty || !img.startsWith('http')) continue;
 
             final cleanId = 'sd:' + title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
-            dynamicList.add({
+            final cleanItem = {
               'id': cleanId,
               'type': 'series',
               'name': title,
@@ -831,7 +890,9 @@ class CatalogService {
               'genres': [genre ?? 'Trending Micro-Dramas', 'Short Drama'],
               'posterShape': 'poster',
               'url': link,
-            });
+            };
+            dynamicShortDramas[cleanId] = cleanItem;
+            dynamicList.add(cleanItem);
           }
           if (dynamicList.isNotEmpty) {
             return dynamicList.take(20).toList();
@@ -872,6 +933,198 @@ class CatalogService {
         'posterShape': 'poster',
       };
     }).toList();
+  }
+
+  static String _buildTmdbSort(String sort, {bool isTv = false}) {
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    
+    if (sort == 'new') {
+      if (isTv) {
+        return '&first_air_date.lte=$today&first_air_date.gte=2024-01-01&sort_by=first_air_date.desc&vote_count.gte=2';
+      } else {
+        return '&primary_release_date.lte=$today&primary_release_date.gte=2024-01-01&sort_by=primary_release_date.desc&vote_count.gte=3';
+      }
+    } else if (sort == 'trending') {
+      if (isTv) {
+        return '&first_air_date.gte=2023-01-01&sort_by=popularity.desc';
+      } else {
+        return '&primary_release_date.gte=2023-01-01&sort_by=popularity.desc';
+      }
+    } else if (sort == 'top_rated') {
+      return '&sort_by=vote_average.desc&vote_count.gte=50';
+    } else {
+      // 'popular'
+      return '&sort_by=popularity.desc';
+    }
+  }
+
+  // ── Hindi Movies Fetcher ──────────────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> _fetchHindiMovies({
+    String? search,
+    String? genre,
+    String sort = 'new',
+    int skip = 0,
+  }) async {
+    final page = (skip ~/ 20) + 1;
+    final tmdbKey = AddonConfig.instance.tmdbApiKey.trim();
+    final apiKey = tmdbKey.isNotEmpty ? tmdbKey : 'b3556f3b206e16f82df4d1f6fd4545e6';
+    
+    String url;
+    if (search != null && search.trim().isNotEmpty) {
+      url = 'https://api.tmdb.org/3/search/movie?api_key=$apiKey&query=${Uri.encodeComponent(search.trim())}&page=$page';
+    } else {
+      String genreQuery = '';
+      if (genre == 'Action & Thriller') genreQuery = '&with_genres=28,53';
+      else if (genre == 'Comedy & Family') genreQuery = '&with_genres=35,10751';
+      else if (genre == 'Romance & Drama') genreQuery = '&with_genres=10749,18';
+      else if (genre == 'Classic Bollywood') genreQuery = '&primary_release_date.lte=2005-01-01';
+
+      final sortQuery = _buildTmdbSort(sort, isTv: false);
+      url = 'https://api.tmdb.org/3/discover/movie?api_key=$apiKey&with_original_language=hi$sortQuery$genreQuery&page=$page';
+    }
+
+    try {
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final results = (data['results'] as List?) ?? [];
+        return results.map<Map<String, dynamic>>((r) {
+          final pPath = r['poster_path']?.toString();
+          final bPath = r['backdrop_path']?.toString();
+          final title = r['title']?.toString() ?? 'Hindi Movie';
+          final year = (r['release_date']?.toString() ?? '').split('-').first;
+          final rating = (r['vote_average'] is num) ? (r['vote_average'] as num).toStringAsFixed(1) : '';
+          return {
+            'id': 'tmdb:${r['id']}',
+            'type': 'movie',
+            'name': title,
+            'poster': pPath != null ? 'https://image.tmdb.org/t/p/w500$pPath' : '',
+            'background': bPath != null ? 'https://image.tmdb.org/t/p/w1280$bPath' : '',
+            'description': r['overview']?.toString() ?? 'Bollywood & Indian cinema streaming.',
+            'year': year,
+            'releaseInfo': year,
+            'rating': rating,
+            'imdbRating': rating,
+            'genres': ['Hindi', 'Bollywood', genre ?? 'Movie'],
+            'posterShape': 'poster',
+          };
+        }).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // ── Hindi Series Fetcher ──────────────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> _fetchHindiSeries({
+    String? search,
+    String? genre,
+    String sort = 'new',
+    int skip = 0,
+  }) async {
+    final page = (skip ~/ 20) + 1;
+    final tmdbKey = AddonConfig.instance.tmdbApiKey.trim();
+    final apiKey = tmdbKey.isNotEmpty ? tmdbKey : 'b3556f3b206e16f82df4d1f6fd4545e6';
+    
+    String url;
+    if (search != null && search.trim().isNotEmpty) {
+      url = 'https://api.tmdb.org/3/search/tv?api_key=$apiKey&query=${Uri.encodeComponent(search.trim())}&page=$page';
+    } else {
+      String genreQuery = '';
+      if (genre == 'Crime & Thriller') genreQuery = '&with_genres=80,9648';
+      else if (genre == 'Action & Drama') genreQuery = '&with_genres=10759,18';
+      else if (genre == 'Comedy & Family') genreQuery = '&with_genres=35,10751';
+      else if (genre == 'Mystery & Suspense') genreQuery = '&with_genres=9648';
+
+      final sortQuery = _buildTmdbSort(sort, isTv: true);
+      url = 'https://api.tmdb.org/3/discover/tv?api_key=$apiKey&with_original_language=hi$sortQuery$genreQuery&page=$page';
+    }
+
+    try {
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final results = (data['results'] as List?) ?? [];
+        return results.map<Map<String, dynamic>>((r) {
+          final pPath = r['poster_path']?.toString();
+          final bPath = r['backdrop_path']?.toString();
+          final title = r['name']?.toString() ?? 'Hindi Series';
+          final year = (r['first_air_date']?.toString() ?? '').split('-').first;
+          final rating = (r['vote_average'] is num) ? (r['vote_average'] as num).toStringAsFixed(1) : '';
+          return {
+            'id': 'tmdb:${r['id']}',
+            'type': 'series',
+            'name': title,
+            'poster': pPath != null ? 'https://image.tmdb.org/t/p/w500$pPath' : '',
+            'background': bPath != null ? 'https://image.tmdb.org/t/p/w1280$bPath' : '',
+            'description': r['overview']?.toString() ?? 'Indian OTT & Hindi drama series.',
+            'year': year,
+            'releaseInfo': year,
+            'rating': rating,
+            'imdbRating': rating,
+            'genres': ['Hindi Series', 'Indian OTT', genre ?? 'Series'],
+            'posterShape': 'poster',
+          };
+        }).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // ── Asian & Short Dramas Fetcher ──────────────────────────────────────────
+  Future<List<Map<String, dynamic>>> _fetchAsianDramas({
+    String? search,
+    String? genre,
+    String sort = 'new',
+    int skip = 0,
+  }) async {
+    if (genre == 'Trending K-Dramas' || genre == 'Chinese Dramas (C-Drama)' || genre == 'Anime & Donghua') {
+      final page = (skip ~/ 20) + 1;
+      final tmdbKey = AddonConfig.instance.tmdbApiKey.trim();
+      final apiKey = tmdbKey.isNotEmpty ? tmdbKey : 'b3556f3b206e16f82df4d1f6fd4545e6';
+      
+      String langParam = 'ko';
+      String genreParam = '';
+      if (genre == 'Chinese Dramas (C-Drama)') {
+        langParam = 'zh';
+      } else if (genre == 'Anime & Donghua') {
+        langParam = 'ja|zh';
+        genreParam = '&with_genres=16';
+      }
+
+      final sortQuery = _buildTmdbSort(sort, isTv: true);
+      final url = 'https://api.tmdb.org/3/discover/tv?api_key=$apiKey&with_original_language=$langParam$sortQuery$genreParam&page=$page';
+      try {
+        final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          final results = (data['results'] as List?) ?? [];
+          return results.map<Map<String, dynamic>>((r) {
+            final pPath = r['poster_path']?.toString();
+            final bPath = r['backdrop_path']?.toString();
+            final title = r['name']?.toString() ?? 'Asian Drama';
+            final year = (r['first_air_date']?.toString() ?? '').split('-').first;
+            final rating = (r['vote_average'] is num) ? (r['vote_average'] as num).toStringAsFixed(1) : '';
+            return {
+              'id': 'tmdb:${r['id']}',
+              'type': 'series',
+              'name': title,
+              'poster': pPath != null ? 'https://image.tmdb.org/t/p/w500$pPath' : '',
+              'background': bPath != null ? 'https://image.tmdb.org/t/p/w1280$bPath' : '',
+              'description': r['overview']?.toString() ?? 'Asian Drama series.',
+              'year': year,
+              'releaseInfo': year,
+              'rating': rating,
+              'imdbRating': rating,
+              'genres': [genre ?? 'Asian Drama'],
+              'posterShape': 'poster',
+            };
+          }).toList();
+        }
+      } catch (_) {}
+    }
+
+    return _fetchShortDramas(search: search, genre: genre, skip: skip);
   }
 
   Future<List<Map<String, dynamic>>> _fetchArchiveOrg({
@@ -1069,7 +1322,12 @@ class CatalogService {
   }
 
   // ── Meta Details Resolver (/meta/:type/:id.json) ───────────────────────────
-  Future<Map<String, dynamic>?> getMetaDetail(String type, String id) async {
+  Future<Map<String, dynamic>?> getMetaDetail(
+    String type,
+    String id, {
+    String? poster,
+    String? name,
+  }) async {
     if (id.startsWith('iptv:')) {
       final chId = id.replaceFirst('iptv:', '');
       final ch = await IptvService.instance.getChannelById(chId);
@@ -1215,37 +1473,45 @@ class CatalogService {
       final baseId = id.contains(':') && !id.startsWith('sd:')
           ? id.split(':').take(2).join(':')
           : (id.split(':').length > 2 ? id.split(':').take(2).join(':') : id);
-      final item = shortDramaCuratedList.firstWhere(
-        (it) => it['id'] == baseId || id.contains(it['id']!.toString().replaceFirst('sd:', '')),
-        orElse: () => {
-          'id': baseId,
-          'name': baseId.split(':').last.replaceAll('_', ' '),
-          'poster': 'https://image.tmdb.org/t/p/w500/u3bZgnGQ9T01sWNhyveQz0wH0Hl.jpg',
-          'genres': ['Micro-Drama', 'Short Drama'],
-          'description': 'Vertical short drama mini-series.',
-          'episodes': 60,
-        },
-      );
-      final epsCount = (item['episodes'] as int?) ?? 60;
+
+      Map<String, dynamic>? item = dynamicShortDramas[baseId] ?? dynamicShortDramas[id];
+      if (item == null) {
+        try {
+          item = shortDramaCuratedList.firstWhere(
+            (it) => it['id'] == baseId || id.contains(it['id']!.toString().replaceFirst('sd:', '')),
+          );
+        } catch (_) {}
+      }
+
+      final resolvedName = (name != null && name.trim().isNotEmpty)
+          ? name.trim()
+          : (item?['name']?.toString() ?? baseId.split(':').last.replaceAll('_', ' '));
+
+      final resolvedPoster = (poster != null && poster.trim().isNotEmpty)
+          ? poster.trim()
+          : (item?['poster']?.toString() ?? '');
+
+      final epsCount = (item?['episodes'] as int?) ?? 60;
       final episodesList = List.generate(epsCount, (idx) {
         final epNum = idx + 1;
         return {
-          'id': '${item['id']}:1:$epNum',
+          'id': '$baseId:1:$epNum',
           'season': 1,
           'episode': epNum,
           'name': 'Episode $epNum',
-          'thumbnail': item['poster'],
-          'overview': 'Episode $epNum of ${item['name']}',
+          'thumbnail': resolvedPoster,
+          'overview': 'Episode $epNum of $resolvedName',
         };
       });
+
       return {
         'id': id,
         'type': 'series',
-        'name': item['name'],
-        'poster': item['poster'],
-        'background': item['poster'],
-        'description': item['description'],
-        'genres': item['genres'],
+        'name': resolvedName,
+        'poster': resolvedPoster,
+        'background': resolvedPoster,
+        'description': item?['description'] ?? 'Vertical short drama mini-series.',
+        'genres': item?['genres'] ?? ['Micro-Drama', 'Short Drama'],
         'seasons': [1],
         'episodesBySeason': {
           '1': episodesList,

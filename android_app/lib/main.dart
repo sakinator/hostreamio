@@ -164,6 +164,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   // Catalog Browser State
   String _activeCatalogTab = 'trending-movie';
   String _activeCatalogGenre = 'All';
+  String _catalogSortFilter = 'new';
   int _catalogSkip = 0;
   bool _isLoadingCatalog = false;
   List<Map<String, dynamic>> _catalogItems = [];
@@ -192,6 +193,54 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       'type': 'series',
       'src': 'cinemeta',
       'id': 'top',
+    },
+    'hindi_movies': {
+      'label': '🇮🇳 Hindi Movies',
+      'type': 'movie',
+      'src': 'local',
+      'id': 'hindi_movies',
+      'genres': [
+        'All',
+        'Bollywood Blockbusters',
+        'Action & Thriller',
+        'Comedy & Family',
+        'Romance & Drama',
+        'South Hindi Dubbed',
+        'Classic Bollywood',
+      ],
+    },
+    'hindi_series': {
+      'label': '🇮🇳 Hindi Series',
+      'type': 'series',
+      'src': 'local',
+      'id': 'hindi_series',
+      'genres': [
+        'All',
+        'Trending OTT Series',
+        'Crime & Thriller',
+        'Action & Drama',
+        'Comedy & Family',
+        'Mystery & Suspense',
+      ],
+    },
+    'asian_dramas': {
+      'label': '🎎 Asian & Short Dramas',
+      'type': 'series',
+      'src': 'local',
+      'id': 'asian_dramas',
+      'genres': [
+        'All',
+        'Trending K-Dramas',
+        'Chinese Dramas (C-Drama)',
+        'Anime & Donghua',
+        'Vertical Micro-Dramas',
+        'DramaBox Unlocked',
+        'ReelShort Hits',
+        'ShortMax & Sereal+',
+        'Billionaire Romance',
+        'Werewolf & Alpha',
+        'Revenge & CEO',
+      ],
     },
     'yt_indian': {
       'label': '🎬 YouTube Indian',
@@ -257,22 +306,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         'Hindi Movies & Dramas',
         'Pakistani Dramas',
         'International Movies',
-      ],
-    },
-    'short_dramas': {
-      'label': '📱 Short Dramas',
-      'type': 'series',
-      'src': 'local',
-      'id': 'short_dramas',
-      'genres': [
-        'All',
-        'Trending Micro-Dramas',
-        'DramaBox Unlocked',
-        'ReelShort Hits',
-        'ShortMax & Sereal+',
-        'Billionaire Romance',
-        'Werewolf & Alpha',
-        'Revenge & CEO',
       ],
     },
   };
@@ -4182,9 +4215,40 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   ),
                 ),
               ),
-              Text(
-                'Tap any title to stream',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              // Sort Filter Dropdown (available across all catalogs!)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF090D13),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF1F2432)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _catalogSortFilter,
+                    dropdownColor: const Color(0xFF161B26),
+                    icon: const Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Icon(Icons.tune_rounded, size: 16, color: Color(0xFFFF0C82)),
+                    ),
+                    isDense: true,
+                    style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+                    items: const [
+                      DropdownMenuItem(value: 'new', child: Text('✨ New Digital Releases')),
+                      DropdownMenuItem(value: 'trending', child: Text('🔥 Trending Now')),
+                      DropdownMenuItem(value: 'popular', child: Text('⭐ Most Popular')),
+                      DropdownMenuItem(value: 'top_rated', child: Text('🏆 Top Rated')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null && val != _catalogSortFilter) {
+                        setState(() {
+                          _catalogSortFilter = val;
+                        });
+                        _loadCatalog(reset: true);
+                      }
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -4648,6 +4712,16 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               'description': m['description']?.toString() ?? '',
             };
           }).toList();
+
+          if (_catalogSortFilter == 'new') {
+            items.sort((a, b) => (b['year']?.toString() ?? '').compareTo(a['year']?.toString() ?? ''));
+          } else if (_catalogSortFilter == 'top_rated') {
+            items.sort((a, b) {
+              final rA = double.tryParse(a['rating']?.toString() ?? '') ?? 0.0;
+              final rB = double.tryParse(b['rating']?.toString() ?? '') ?? 0.0;
+              return rB.compareTo(rA);
+            });
+          }
         }
       } else {
         final catalogId = def['id'] as String;
@@ -4656,6 +4730,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           type: mediaType,
           id: catalogId,
           genre: genreParam,
+          sort: _catalogSortFilter,
           skip: _catalogSkip,
         );
       }
@@ -5532,13 +5607,17 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     });
 
     try {
-      final details = await MetadataService.getSeriesDetails(id);
+      final details = await MetadataService.getSeriesDetails(id, poster: poster, name: name);
       if (mounted && details != null) {
+        if (poster != null && poster.isNotEmpty && (details['poster'] == null || details['poster'].toString().isEmpty)) {
+          details['poster'] = poster;
+        }
         setState(() {
           _seriesDetails = details;
           _selectedMediaMeta = {
             ...?_selectedMediaMeta,
             ...details,
+            if (poster != null && poster.isNotEmpty) 'poster': (details['poster']?.toString().isNotEmpty == true ? details['poster'] : poster),
           };
           final seasons = (details['seasons'] as List?)?.map((e) => int.tryParse(e.toString()) ?? 1).toList() ?? [1];
           _selectedSeason = seasons.isNotEmpty ? seasons.first : 1;

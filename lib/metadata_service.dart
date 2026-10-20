@@ -590,9 +590,13 @@ class MetadataService {
   }
 
   /// Fetches complete series catalog details including seasons and episodes.
-  static Future<Map<String, dynamic>?> getSeriesDetails(String rawId) async {
+  static Future<Map<String, dynamic>?> getSeriesDetails(
+    String rawId, {
+    String? poster,
+    String? name,
+  }) async {
     if (rawId.startsWith('sd:') || rawId.startsWith('shortdrama:')) {
-      return CatalogService.instance.getMetaDetail('series', rawId);
+      return CatalogService.instance.getMetaDetail('series', rawId, poster: poster, name: name);
     }
 
     String baseId = rawId;
@@ -601,6 +605,7 @@ class MetadataService {
     }
 
     String? imdbId;
+    Map<String, dynamic>? tmdbData;
     if (baseId.startsWith('tt')) {
       imdbId = baseId;
     } else if (baseId.startsWith('tmdb:')) {
@@ -611,93 +616,168 @@ class MetadataService {
           final uri = Uri.parse('$_tmdbDirect/tv/$tmdbId?api_key=$_apiKey');
           final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
           if (res.statusCode == 200) {
-            final data = jsonDecode(res.body);
-            imdbId = data['external_ids']?['imdb_id'] ?? data['imdb_id'];
+            tmdbData = jsonDecode(res.body);
+            imdbId = tmdbData!['external_ids']?['imdb_id'] ?? tmdbData!['imdb_id'];
           }
         } catch (_) {}
       }
     }
 
-    if (imdbId == null || !imdbId.startsWith('tt')) {
-      return null;
+    if (imdbId != null && imdbId.startsWith('tt')) {
+      try {
+        final uri = Uri.parse('$_cinemeta/series/$imdbId.json');
+        final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          final meta = data['meta'];
+          if (meta != null) {
+            final videos = (meta['videos'] as List?) ?? [];
+            final seasonsSet = <int>{};
+            final episodesBySeason = <String, List<Map<String, dynamic>>>{};
+
+            for (final v in videos) {
+              if (v is Map) {
+                final sNum = v['season'] as int? ?? 1;
+                final eNum = (v['number'] ?? v['episode']) as int? ?? 1;
+                seasonsSet.add(sNum);
+                final sKey = sNum.toString();
+                episodesBySeason.putIfAbsent(sKey, () => []);
+                episodesBySeason[sKey]!.add({
+                  'id': v['id']?.toString() ?? '$imdbId:$sNum:$eNum',
+                  'season': sNum,
+                  'episode': eNum,
+                  'name': v['name']?.toString() ?? 'Episode $eNum',
+                  'thumbnail': v['thumbnail']?.toString() ?? 'https://episodes.metahub.space/$imdbId/$sNum/$eNum/w780.jpg',
+                  'overview': v['overview']?.toString() ?? v['description']?.toString() ?? '',
+                  'released': v['released']?.toString() ?? v['firstAired']?.toString() ?? '',
+                });
+              }
+            }
+
+            final sortedSeasons = seasonsSet.toList()..sort();
+            final ratings = await resolveMultipleRatings(imdbId, cinemetaRating: meta['imdbRating']?.toString());
+            final primaryRating = ratings.isNotEmpty ? ratings[0]['value']! : (meta['imdbRating']?.toString() ?? '');
+            final tmdbNumeric = meta['moviedb_id'] is int
+                ? meta['moviedb_id'] as int
+                : int.tryParse(meta['moviedb_id']?.toString() ?? '');
+            final ageRatings = await resolveAgeRatings(
+              imdbId,
+              type: 'series',
+              tmdbId: tmdbNumeric,
+              country: meta['country']?.toString(),
+              name: meta['name']?.toString(),
+            );
+
+            return {
+              'id': imdbId,
+              'name': meta['name']?.toString() ?? name ?? '',
+              'year': meta['year']?.toString() ?? meta['releaseInfo']?.toString() ?? '',
+              'poster': meta['poster']?.toString() ?? (poster ?? 'https://images.metahub.space/poster/medium/$imdbId/img'),
+              'background': meta['background']?.toString() ?? 'https://images.metahub.space/background/medium/$imdbId/img',
+              'description': meta['description']?.toString() ?? '',
+              'imdbRating': primaryRating,
+              'rating': primaryRating,
+              'ratings': ratings,
+              'universalAgeRating': ageRatings['universal'],
+              'indianAgeRating': ageRatings['indian'],
+              'isIndianContent': ageRatings['isIndianContent'],
+              'genres': meta['genres'] ?? [],
+              'seasons': sortedSeasons,
+              'episodesBySeason': episodesBySeason,
+            };
+          }
+        }
+      } catch (_) {}
     }
 
-    try {
-      final uri = Uri.parse('$_cinemeta/series/$imdbId.json');
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final meta = data['meta'];
-        if (meta != null) {
-          final videos = (meta['videos'] as List?) ?? [];
-          final seasonsSet = <int>{};
-          final episodesBySeason = <String, List<Map<String, dynamic>>>{};
+    // Direct TMDb fallback for Indian/Asian/OTT series without IMDb entry on Cinemeta
+    if (tmdbData != null) {
+      final seasonsList = <int>[];
+      final episodesBySeason = <String, List<Map<String, dynamic>>>{};
+      final rawSeasons = (tmdbData['seasons'] as List?) ?? [];
 
-          for (final v in videos) {
-            if (v is Map) {
-              final sNum = v['season'] as int? ?? 1;
-              final eNum = (v['number'] ?? v['episode']) as int? ?? 1;
-              seasonsSet.add(sNum);
-              final sKey = sNum.toString();
-              episodesBySeason.putIfAbsent(sKey, () => []);
-              episodesBySeason[sKey]!.add({
-                'id': v['id']?.toString() ?? '$imdbId:$sNum:$eNum',
-                'season': sNum,
-                'episode': eNum,
-                'name': v['name']?.toString() ?? 'Episode $eNum',
-                'thumbnail': v['thumbnail']?.toString() ?? 'https://episodes.metahub.space/$imdbId/$sNum/$eNum/w780.jpg',
-                'overview': v['overview']?.toString() ?? v['description']?.toString() ?? '',
-                'released': v['released']?.toString() ?? v['firstAired']?.toString() ?? '',
-              });
-            }
-          }
+      final seriesPoster = tmdbData['poster_path'] != null
+          ? 'https://image.tmdb.org/t/p/w500${tmdbData['poster_path']}'
+          : (poster ?? '');
+      final seriesBg = tmdbData['backdrop_path'] != null
+          ? 'https://image.tmdb.org/t/p/w1280${tmdbData['backdrop_path']}'
+          : '';
+      final seriesName = tmdbData['name']?.toString() ?? name ?? 'Series';
 
-          final sortedSeasons = seasonsSet.toList()..sort();
-          final ratings = await resolveMultipleRatings(imdbId, cinemetaRating: meta['imdbRating']?.toString());
-          final primaryRating = ratings.isNotEmpty ? ratings[0]['value']! : (meta['imdbRating']?.toString() ?? '');
-          final tmdbNumeric = meta['moviedb_id'] is int
-              ? meta['moviedb_id'] as int
-              : int.tryParse(meta['moviedb_id']?.toString() ?? '');
-          final ageRatings = await resolveAgeRatings(
-            imdbId,
-            type: 'series',
-            tmdbId: tmdbNumeric,
-            country: meta['country']?.toString(),
-            name: meta['name']?.toString(),
-          );
-
-          return {
-            'id': imdbId,
-            'name': meta['name']?.toString() ?? '',
-            'year': meta['year']?.toString() ?? meta['releaseInfo']?.toString() ?? '',
-            'poster': meta['poster']?.toString() ?? 'https://images.metahub.space/poster/medium/$imdbId/img',
-            'background': meta['background']?.toString() ?? 'https://images.metahub.space/background/medium/$imdbId/img',
-            'description': meta['description']?.toString() ?? '',
-            'imdbRating': primaryRating,
-            'rating': primaryRating,
-            'ratings': ratings,
-            'universalAgeRating': ageRatings['universal'],
-            'indianAgeRating': ageRatings['indian'],
-            'isIndianContent': ageRatings['isIndianContent'],
-            'genres': meta['genres'] ?? [],
-            'seasons': sortedSeasons,
-            'episodesBySeason': episodesBySeason,
-          };
+      for (final s in rawSeasons) {
+        if (s is Map) {
+          final sNum = s['season_number'] as int? ?? 1;
+          if (sNum <= 0) continue; // Skip specials
+          seasonsList.add(sNum);
+          final count = (s['episode_count'] as int?) ?? 1;
+          final epPoster = s['poster_path'] != null
+              ? 'https://image.tmdb.org/t/p/w500${s['poster_path']}'
+              : seriesPoster;
+          final epList = List.generate(count, (idx) {
+            final epNum = idx + 1;
+            return {
+              'id': '$baseId:$sNum:$epNum',
+              'season': sNum,
+              'episode': epNum,
+              'name': 'Episode $epNum',
+              'thumbnail': epPoster,
+              'overview': 'Season $sNum Episode $epNum of $seriesName',
+            };
+          });
+          episodesBySeason[sNum.toString()] = epList;
         }
       }
-    } catch (_) {}
+
+      if (seasonsList.isEmpty) {
+        seasonsList.add(1);
+        episodesBySeason['1'] = [
+          {
+            'id': '$baseId:1:1',
+            'season': 1,
+            'episode': 1,
+            'name': 'Episode 1',
+            'thumbnail': seriesPoster,
+            'overview': 'Episode 1 of $seriesName',
+          }
+        ];
+      }
+
+      final rating = (tmdbData['vote_average'] is num)
+          ? (tmdbData['vote_average'] as num).toStringAsFixed(1)
+          : '';
+      final year = (tmdbData['first_air_date']?.toString() ?? '').split('-').first;
+
+      return {
+        'id': rawId,
+        'name': seriesName,
+        'year': year,
+        'poster': seriesPoster,
+        'background': seriesBg,
+        'description': tmdbData['overview']?.toString() ?? '',
+        'imdbRating': rating,
+        'rating': rating,
+        'genres': (tmdbData['genres'] as List?)?.map((g) => g['name']?.toString() ?? '').toList() ?? ['Series'],
+        'seasons': seasonsList,
+        'episodesBySeason': episodesBySeason,
+      };
+    }
 
     return null;
   }
 
   /// Fetches complete media catalog details (movie or series) including poster, backdrop, synopsis, rating, and episodes.
-  static Future<Map<String, dynamic>?> getMediaDetails(String rawId, {String type = 'movie'}) async {
+  static Future<Map<String, dynamic>?> getMediaDetails(
+    String rawId, {
+    String type = 'movie',
+    String? poster,
+    String? name,
+  }) async {
     if (rawId.startsWith('sd:') || rawId.startsWith('shortdrama:')) {
-      return CatalogService.instance.getMetaDetail('series', rawId);
+      return CatalogService.instance.getMetaDetail('series', rawId, poster: poster, name: name);
     }
     final cleanType = (type == 'series' || type == 'tv') ? 'series' : 'movie';
     if (cleanType == 'series') {
-      return getSeriesDetails(rawId);
+      return getSeriesDetails(rawId, poster: poster, name: name);
     }
 
     String baseId = rawId;

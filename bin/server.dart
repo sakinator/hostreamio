@@ -240,6 +240,7 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
 
         String? search;
         String? genre;
+        String sort = 'new';
         int skip = 0;
 
         if (segments.length >= 4) {
@@ -251,16 +252,24 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
           for (final p in parts) {
             if (p.startsWith('search=')) search = p.substring(7);
             if (p.startsWith('genre=')) genre = p.substring(6);
+            if (p.startsWith('sort=')) sort = p.substring(5);
             if (p.startsWith('skip=')) skip = int.tryParse(p.substring(5)) ?? 0;
           }
         }
+        if (request.uri.queryParameters.containsKey('sort')) {
+          sort = request.uri.queryParameters['sort']!;
+        }
+        if (request.uri.queryParameters.containsKey('genre')) {
+          genre = request.uri.queryParameters['genre']!;
+        }
 
-        print('[Catalog] Query catId=$catId, type=$type, search=$search, genre=$genre, skip=$skip');
+        print('[Catalog] Query catId=$catId, type=$type, search=$search, genre=$genre, sort=$sort, skip=$skip');
         final items = await CatalogService.instance.getCatalogItems(
           type: type,
           id: catId,
           search: search,
           genre: genre,
+          sort: sort,
           skip: skip,
         );
 
@@ -635,7 +644,9 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
     // ── 4c2. In-App Series Catalog & Episodes: GET /api/series/episodes?id=... ─
     if (path == '/api/series/episodes') {
       final id = request.uri.queryParameters['id'] ?? '';
-      final details = await MetadataService.getSeriesDetails(id);
+      final poster = request.uri.queryParameters['poster'];
+      final name = request.uri.queryParameters['name'];
+      final details = await MetadataService.getSeriesDetails(id, poster: poster, name: name);
       request.response.headers.contentType = ContentType.json;
       if (details != null) {
         request.response.write(jsonEncode({'success': true, 'series': details}));
@@ -650,7 +661,9 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
     if (path == '/api/media/details') {
       final id = request.uri.queryParameters['id'] ?? '';
       final type = request.uri.queryParameters['type'] ?? 'movie';
-      final details = await MetadataService.getMediaDetails(id, type: type);
+      final poster = request.uri.queryParameters['poster'];
+      final name = request.uri.queryParameters['name'];
+      final details = await MetadataService.getMediaDetails(id, type: type, poster: poster, name: name);
       request.response.headers.contentType = ContentType.json;
       if (details != null) {
         request.response.write(jsonEncode({'success': true, 'media': details}));
