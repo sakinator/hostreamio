@@ -4396,16 +4396,52 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                           poster,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                            color: const Color(0xFF090D13),
-                            child: const Center(
-                              child: Icon(Icons.movie_rounded, color: Colors.grey, size: 30),
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF1E2638), Color(0xFF0F1420)],
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.play_circle_filled_rounded, color: Color(0xFFFF0C82), size: 30),
+                                const SizedBox(height: 8),
+                                Text(
+                                  name,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                                ),
+                              ],
                             ),
                           ),
                         )
                       : Container(
-                          color: const Color(0xFF090D13),
-                          child: const Center(
-                            child: Icon(Icons.movie_rounded, color: Colors.grey, size: 30),
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF1E2638), Color(0xFF0F1420)],
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.play_circle_filled_rounded, color: Color(0xFFFF0C82), size: 30),
+                              const SizedBox(height: 8),
+                              Text(
+                                name,
+                                textAlign: TextAlign.center,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                              ),
+                            ],
                           ),
                         ),
                 ),
