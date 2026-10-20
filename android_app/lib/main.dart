@@ -20,6 +20,9 @@ import 'package:window_manager/window_manager.dart';
 import 'player_screen.dart';
 import 'window_service.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'ui/tv_focusable_button.dart';
+import 'ui/catalog_browser_widget.dart';
+import 'ui/series_browser_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,6 +134,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   bool _enableOpenSubtitles = true;
   bool _enableTorboxCachedTorrents = false;
   bool _enableCacheBypass = true;
+  bool _enableHardwareAcceleration = true;
+  String _defaultPlayerEngine = 'embedded';
   final TextEditingController _proxyResolverController = TextEditingController();
 
   // Streaming View State
@@ -341,6 +346,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     _enableOpenSubtitles = cfg.enableOpenSubtitles;
     _enableTorboxCachedTorrents = cfg.enableTorboxCachedTorrents;
     _enableCacheBypass = cfg.enableCacheBypass;
+    _enableHardwareAcceleration = cfg.enableHardwareAcceleration;
+    _defaultPlayerEngine = cfg.defaultPlayerEngine;
     _proxyResolverController.text = cfg.proxyResolverUrl;
 
     _watchlist = List<Map<String, dynamic>>.from(cfg.watchlistItems);
@@ -2167,6 +2174,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     cfg.enableOpenSubtitles = _enableOpenSubtitles;
     cfg.enableTorboxCachedTorrents = _enableTorboxCachedTorrents;
     cfg.enableCacheBypass = _enableCacheBypass;
+    cfg.enableHardwareAcceleration = _enableHardwareAcceleration;
+    cfg.defaultPlayerEngine = _defaultPlayerEngine;
     cfg.proxyResolverUrl = _proxyResolverController.text.trim();
     await cfg.save();
     if (mounted) {
@@ -2799,6 +2808,52 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             activeColor: const Color(0xFF238636),
             contentPadding: EdgeInsets.zero,
             onChanged: (v) => setState(() => _enableOpenSubtitles = v ?? true),
+          ),
+          const Divider(color: Color(0xFF30363D), height: 24),
+          const Text('🎬 Embedded Player & Hardware Acceleration', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+          const SizedBox(height: 6),
+          Text('Configure native hardware video decoding (GPU/MediaCodec) and default player behavior.', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+          const SizedBox(height: 10),
+          CheckboxListTile(
+            title: const Text('Hardware Video Decoding (HW Acceleration)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            subtitle: Text('Uses native GPU / ExoPlayer hardware decoding on Android & DXVA2/D3D11 on Windows. Disable if 4K HDR streams stutter or show a black screen.', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+            value: _enableHardwareAcceleration,
+            activeColor: const Color(0xFF238636),
+            contentPadding: EdgeInsets.zero,
+            onChanged: (v) => setState(() => _enableHardwareAcceleration = v ?? true),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text('Default Player Engine:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161B22),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF30363D)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _defaultPlayerEngine,
+                    dropdownColor: const Color(0xFF161B22),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                    items: const [
+                      DropdownMenuItem(value: 'embedded', child: Text('⚡ Native Embedded Player (Recommended)')),
+                      DropdownMenuItem(value: 'vlc', child: Text('🎬 External VLC Player')),
+                      DropdownMenuItem(value: 'justplayer', child: Text('▶️ External JustPlayer')),
+                      DropdownMenuItem(value: 'chooser', child: Text('📱 System App Chooser')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _defaultPlayerEngine = val);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
           const Divider(color: Color(0xFF30363D), height: 24),
           const Text('Anti-Scrape & Captcha Resolver (Prowlarr / FlareSolverr)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
@@ -4190,446 +4245,31 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   }
 
   Widget _buildCatalogBrowser({bool isWide = false}) {
-    final currentDef = _catalogDefs[_activeCatalogTab];
-    final genres = currentDef != null && currentDef.containsKey('genres') ? currentDef['genres'] as List<String>? : null;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF11141C),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF1F2432), width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.video_library_rounded, color: Color(0xFFFF0C82), size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Browse Catalogs',
-                  style: TextStyle(
-                    fontSize: isWide ? 18 : 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              // Sort Filter Dropdown (available across all catalogs!)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF090D13),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF1F2432)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _catalogSortFilter,
-                    dropdownColor: const Color(0xFF161B26),
-                    icon: const Padding(
-                      padding: EdgeInsets.only(left: 6),
-                      child: Icon(Icons.tune_rounded, size: 16, color: Color(0xFFFF0C82)),
-                    ),
-                    isDense: true,
-                    style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
-                    items: const [
-                      DropdownMenuItem(value: 'new', child: Text('✨ New Digital Releases')),
-                      DropdownMenuItem(value: 'trending', child: Text('🔥 Trending Now')),
-                      DropdownMenuItem(value: 'popular', child: Text('⭐ Most Popular')),
-                      DropdownMenuItem(value: 'top_rated', child: Text('🏆 Top Rated')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null && val != _catalogSortFilter) {
-                        setState(() {
-                          _catalogSortFilter = val;
-                        });
-                        _loadCatalog(reset: true);
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Catalog Tabs Row
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _catalogDefs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final key = _catalogDefs.keys.elementAt(index);
-                final def = _catalogDefs[key]!;
-                final isActive = (key == _activeCatalogTab);
-                final label = def['label'] as String;
-
-                return _TvFocusableButton(
-                  onPressed: () {
-                    if (_activeCatalogTab != key) {
-                      setState(() {
-                        _activeCatalogTab = key;
-                        _activeCatalogGenre = 'All';
-                      });
-                      _loadCatalog(reset: true);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isActive ? const Color(0xFF195FEB) : const Color(0xFF090D13),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: isActive ? const Color(0xFF195FEB) : const Color(0xFF1F2432)),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isActive ? Colors.white : Colors.grey.shade400,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Genre Filter Chips Row (if applicable)
-          if (genres != null && genres.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 32,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: genres.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (context, index) {
-                  final g = genres[index];
-                  final isActive = (g == _activeCatalogGenre);
-                  return GestureDetector(
-                    onTap: () {
-                      if (_activeCatalogGenre != g) {
-                        setState(() => _activeCatalogGenre = g);
-                        _loadCatalog(reset: true);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isActive ? const Color(0xFF238636) : const Color(0xFF090D13),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: isActive ? const Color(0xFF238636) : const Color(0xFF1F2432)),
-                      ),
-                      child: Text(
-                        g,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isActive ? Colors.white : Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-
-          // Catalog Content (Loading, Empty, or Posters Grid)
-          if (_isLoadingCatalog && _catalogItems.isEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              alignment: Alignment.center,
-              child: const Column(
-                children: [
-                  CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFFF0C82)),
-                  SizedBox(height: 12),
-                  Text('Loading catalog titles...', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                ],
-              ),
-            ),
-          ] else if (_catalogItems.isEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 36),
-              alignment: Alignment.center,
-              child: Column(
-                children: [
-                  Icon(Icons.inbox_rounded, size: 36, color: Colors.grey.shade600),
-                  const SizedBox(height: 8),
-                  Text('No titles found for this category.', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () => _loadCatalog(reset: true),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF195FEB)),
-                    child: const Text('Retry', style: TextStyle(fontSize: 12, color: Colors.white)),
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final cols = isWide
-                    ? (width >= 900 ? 6 : 5)
-                    : (width >= 550 ? 4 : (width < 340 ? 2 : 3));
-
-                return FocusTraversalGroup(
-                  policy: ReadingOrderTraversalPolicy(),
-                  child: GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: cols,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.58,
-                    ),
-                    itemCount: _catalogItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _catalogItems[index];
-                      return _buildCatalogCard(item, isWide: isWide);
-                    },
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 16),
-            // Load More Button
-            Center(
-              child: _TvFocusableButton(
-                onPressed: _isLoadingCatalog ? () {} : () => _loadCatalog(reset: false),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_isLoadingCatalog)
-                        const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      else
-                        const Icon(Icons.arrow_downward_rounded, size: 16, color: Colors.white),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Load More Titles',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCatalogCard(Map<String, dynamic> item, {bool isWide = false}) {
-    final id = item['id']?.toString() ?? '';
-    final name = item['name']?.toString() ?? 'Unknown';
-    final poster = item['poster']?.toString() ?? '';
-    final year = item['year']?.toString() ?? '';
-    final rating = item['rating']?.toString() ?? '';
-    final type = item['type']?.toString() ?? 'movie';
-    final isSelected = (_searchQueryController.text.trim() == id);
-
-    return _TvFocusableButton(
-      onPressed: () => _onSelectCatalogItem(item),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Poster Image
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: poster.isNotEmpty
-                      ? Image.network(
-                          poster,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFF1E2638), Color(0xFF0F1420)],
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(8),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.play_circle_filled_rounded, color: Color(0xFFFF0C82), size: 30),
-                                const SizedBox(height: 8),
-                                Text(
-                                  name,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : Container(
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFF1E2638), Color(0xFF0F1420)],
-                            ),
-                          ),
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.play_circle_filled_rounded, color: Color(0xFFFF0C82), size: 30),
-                              const SizedBox(height: 8),
-                              Text(
-                                name,
-                                textAlign: TextAlign.center,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-                // Rating or Type Badge
-                if (rating.isNotEmpty && rating != '0')
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFE3B341).withOpacity(0.6)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star_rounded, size: 12, color: Color(0xFFE3B341)),
-                          const SizedBox(width: 2),
-                          Text(
-                            rating,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (type == 'series')
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF195FEB).withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'SERIES',
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                if (_watchlist.any((w) => w['id'] == id))
-                  Positioned(
-                    top: 6,
-                    left: type == 'series' ? 56 : 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF238636).withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: const Icon(Icons.bookmark_rounded, size: 12, color: Colors.white),
-                    ),
-                  ),
-                // Playback progress indicator
-                Builder(
-                  builder: (_) {
-                    final savedMs = AddonConfig.instance.resumePositions[id] ??
-                        AddonConfig.instance.resumePositions[name] ?? 0;
-                    if (savedMs > 0) {
-                      return Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          height: 4,
-                          color: Colors.black45,
-                          child: const FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: 0.6, // Visual indicator that item is in-progress
-                            child: ColoredBox(color: Color(0xFFFF0C82)),
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                if (isSelected)
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFFF0C82), width: 2.5),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // Title & Year Footer
-          Padding(
-            padding: const EdgeInsets.all(7),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: isWide ? 12 : 11,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? const Color(0xFFFF0C82) : Colors.white,
-                  ),
-                ),
-                if (year.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    year,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
+    return CatalogBrowserWidget(
+      catalogDefs: _catalogDefs,
+      activeCatalogTab: _activeCatalogTab,
+      activeCatalogGenre: _activeCatalogGenre,
+      catalogSortFilter: _catalogSortFilter,
+      catalogItems: _catalogItems,
+      isLoadingCatalog: _isLoadingCatalog,
+      isWide: isWide,
+      onTabChanged: (tabKey) {
+        setState(() {
+          _activeCatalogTab = tabKey;
+          _activeCatalogGenre = 'All';
+        });
+        _loadCatalog(reset: true);
+      },
+      onGenreChanged: (genre) {
+        setState(() => _activeCatalogGenre = genre);
+        _loadCatalog(reset: true);
+      },
+      onSortChanged: (sort) {
+        setState(() => _catalogSortFilter = sort);
+        _loadCatalog(reset: true);
+      },
+      onItemTap: _onSelectCatalogItem,
+      onLoadMore: () => _loadCatalog(reset: false),
     );
   }
 
@@ -4757,151 +4397,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   }
 
   Widget _buildSeriesCatalogBrowser() {
-    final seasons = (_seriesDetails!['seasons'] as List?)?.map((e) => int.tryParse(e.toString()) ?? 1).toList() ?? [1];
-    final epsBySeason = (_seriesDetails!['episodesBySeason'] as Map<String, dynamic>?) ?? {};
-    final currentEps = (epsBySeason['$_selectedSeason'] as List?) ?? [];
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF11141C),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1F2432)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '📺 Seasons & Episodes (${_seriesDetails!['name'] ?? ''})',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-              ),
-              Text(
-                '${seasons.length} Season(s)',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Seasons Horizontal Bar
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-               itemCount: seasons.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final sNum = seasons[index];
-                final isActive = (sNum == _selectedSeason);
-                return _TvFocusableButton(
-                  isPrimary: isActive,
-                  primaryColor: const Color(0xFF195FEB),
-                  onPressed: () {
-                    setState(() => _selectedSeason = sNum);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isActive ? const Color(0xFF195FEB) : const Color(0xFF090D13),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: isActive ? const Color(0xFF195FEB) : const Color(0xFF1F2432)),
-                    ),
-                    child: Text(
-                      'Season $sNum',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isActive ? Colors.white : Colors.grey.shade400,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Episodes List
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 260),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: currentEps.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final ep = currentEps[index] as Map<String, dynamic>;
-                final epId = ep['id']?.toString() ?? '';
-                final isSelected = (epId == _selectedEpisodeId);
-                final thumb = ep['thumbnail']?.toString() ?? _seriesDetails!['poster']?.toString() ?? '';
-                final epNum = 'S${ep['season'] < 10 ? '0' : ''}${ep['season']}E${ep['episode'] < 10 ? '0' : ''}${ep['episode']}';
-
-                return _TvFocusableButton(
-                  isPrimary: isSelected,
-                  primaryColor: const Color(0xFF195FEB),
-                  onPressed: () {
-                    setState(() {
-                      _selectedEpisodeId = epId;
-                      _seasonController.text = ep['season'].toString();
-                      _episodeController.text = ep['episode'].toString();
-                    });
-                    final title = '${_seriesDetails!['name']} $epNum: ${ep['name']}';
-                    _scrapeStreams(epId, 'series', title);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF195FEB).withOpacity(0.15) : const Color(0xFF090D13),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFF195FEB) : const Color(0xFF1F2432),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        if (thumb.isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.network(
-                              thumb,
-                              width: 65,
-                              height: 48,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(width: 65, height: 48, color: Colors.black26),
-                            ),
-                          ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '$epNum: ${ep['name'] ?? ''}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
-                              ),
-                              if (ep['overview'] != null && ep['overview'].toString().isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    ep['overview'].toString(),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400, height: 1.25),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.play_circle_outline_rounded, color: Color(0xFFFF0C82), size: 24),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+    if (_seriesDetails == null) return const SizedBox.shrink();
+    return SeriesBrowserWidget(
+      seriesDetails: _seriesDetails!,
+      selectedSeason: _selectedSeason,
+      selectedEpisodeId: _selectedEpisodeId,
+      onSeasonChanged: (sNum) => setState(() => _selectedSeason = sNum),
+      onEpisodeTap: (ep, epNum) {
+        final epId = ep['id']?.toString() ?? '';
+        setState(() {
+          _selectedEpisodeId = epId;
+          _seasonController.text = ep['season'].toString();
+          _episodeController.text = ep['episode'].toString();
+        });
+        final title = '${_seriesDetails!['name']} $epNum: ${ep['name']}';
+        _scrapeStreams(epId, 'series', title);
+      },
     );
   }
 
@@ -5937,6 +5448,18 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       }
     } else if (streamTarget is String) {
       title = streamTarget;
+    }
+
+    // Respect default player engine preference if not explicitly overridden
+    final playerEngine = _defaultPlayerEngine;
+    if (!forceChooser && !forceExternal && packageName == null && playerEngine != 'embedded') {
+      if (playerEngine == 'vlc') {
+        packageName = 'org.videolan.vlc';
+      } else if (playerEngine == 'justplayer') {
+        packageName = 'com.brouken.player';
+      } else if (playerEngine == 'chooser') {
+        forceChooser = true;
+      }
     }
 
     // Default: Open in built-in high-performance libmpv player (for both Android & Windows)
@@ -7010,90 +6533,5 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 }
 
 /// D-Pad and remote-friendly focusable button for Android TV & Mobile
-class _TvFocusableButton extends StatefulWidget {
-  final FocusNode? focusNode;
-  final VoidCallback onPressed;
-  final Widget child;
-  final bool isPrimary;
-  final Color? primaryColor;
+typedef _TvFocusableButton = TvFocusableButton;
 
-  const _TvFocusableButton({
-    this.focusNode,
-    required this.onPressed,
-    required this.child,
-    this.isPrimary = false,
-    this.primaryColor,
-  });
-
-  @override
-  State<_TvFocusableButton> createState() => _TvFocusableButtonState();
-}
-
-class _TvFocusableButtonState extends State<_TvFocusableButton> {
-  bool _isFocused = false;
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasHighlight = _isFocused || _isHovered;
-    final bg = widget.isPrimary
-        ? (widget.primaryColor ?? const Color(0xFF6366F1))
-        : (hasHighlight ? const Color(0xFF21262D) : const Color(0xFF161B22));
-
-    return FocusableActionDetector(
-      focusNode: widget.focusNode,
-      autofocus: false,
-      onFocusChange: (focused) {
-        setState(() => _isFocused = focused);
-        if (focused) {
-          Scrollable.ensureVisible(
-            context,
-            alignment: 0.5,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-          );
-        }
-      },
-      onShowHoverHighlight: (hovered) => setState(() => _isHovered = hovered),
-      actions: {
-        ActivateIntent: CallbackAction<ActivateIntent>(
-          onInvoke: (_) => widget.onPressed(),
-        ),
-      },
-      shortcuts: const {
-        SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
-        SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          transform: hasHighlight ? Matrix4.diagonal3Values(1.04, 1.04, 1.0) : Matrix4.identity(),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: hasHighlight ? const Color(0xFF38BDF8) : const Color(0xFF30363D),
-              width: hasHighlight ? 2.5 : 1.2,
-            ),
-            boxShadow: hasHighlight
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF38BDF8).withOpacity(0.4),
-                      blurRadius: 18,
-                      spreadRadius: 2,
-                    ),
-                  ]
-                : [],
-          ),
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}

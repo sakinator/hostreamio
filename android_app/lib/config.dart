@@ -47,6 +47,8 @@ class AddonConfig {
   String preferredSubtitleLanguage = 'en'; // 'en', 'hi', 'es', 'fr', 'de', 'ar', 'pt', 'ru', 'ja', 'all'
   String cloudflareTunnelToken = ''; // Cloudflare Tunnel token for remote HTTPS access
   bool enableCloudflareTunnel = false;
+  bool enableHardwareAcceleration = true; // Native GPU / ExoPlayer HWDEC decoding on Android & DXVA/D3D11 on Windows
+  String defaultPlayerEngine = 'embedded'; // 'embedded', 'vlc', 'justplayer', 'chooser'
   Map<String, int> resumePositions = {}; // id/url -> position in ms
   List<Map<String, dynamic>> watchlistItems = [];
   List<Map<String, dynamic>> watchHistoryItems = [];
@@ -124,6 +126,12 @@ class AddonConfig {
         if (map['enableCloudflareTunnel'] is bool) {
           enableCloudflareTunnel = map['enableCloudflareTunnel'];
         }
+        if (map['enableHardwareAcceleration'] is bool) {
+          enableHardwareAcceleration = map['enableHardwareAcceleration'];
+        }
+        if (map['defaultPlayerEngine'] is String && (map['defaultPlayerEngine'] as String).isNotEmpty) {
+          defaultPlayerEngine = map['defaultPlayerEngine'];
+        }
         if (map['enableTorboxCachedTorrents'] is bool) {
           enableTorboxCachedTorrents = map['enableTorboxCachedTorrents'];
         }
@@ -199,6 +207,8 @@ class AddonConfig {
         'enableOpenSubtitles': enableOpenSubtitles,
         'cloudflareTunnelToken': cloudflareTunnelToken,
         'enableCloudflareTunnel': enableCloudflareTunnel,
+        'enableHardwareAcceleration': enableHardwareAcceleration,
+        'defaultPlayerEngine': defaultPlayerEngine,
         'enableTorboxCachedTorrents': enableTorboxCachedTorrents,
         'enableCacheBypass': enableCacheBypass,
         'enablePublicStreams': enablePublicStreams,

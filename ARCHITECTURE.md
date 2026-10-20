@@ -262,12 +262,15 @@ Whenever updating the version number, you **MUST** update all 4 locations in loc
 4. **Proxy Memory Streaming:** Never buffer media streams (`.mp4`, `.mkv`, `>8MB`) into RAM with `res.fold()`. Always use `response.addStream(res)` chunk-by-chunk. Only small micro-segments (`<8MB`) belong in the in-memory `SegmentCache`.
 5. **Atomic Config Saving:** Always write config updates to `${path}.tmp` with flush, followed by atomic rename and Windows file-lock copy/delete fallback. Debounce rapid toggles by 300ms.
 
-### ⚠️ Invariant 11: In-App Video Player (`media_kit` / `libmpv`) & Super Audio Gain
+### ⚠️ Invariant 11: In-App Video Player (`media_kit` / `libmpv`), Hardware Acceleration & Super Audio Gain
 Both Android (Mobile/TV) and Windows desktop apps incorporate a high-performance in-app video player (`PlayerScreen` in `android_app/lib/player_screen.dart`):
 1. **Engine:** Built upon `media_kit` and `libmpv` with hardware decoding and a 32MB readahead buffer.
-2. **Stream Intelligence:** Automatically detects Live IPTV streams (`.m3u8` / `.ts`): hides VOD seek bars, displays live latency status, and auto-reconnects on network interruptions.
-3. **200% VLC Super Audio Gain:** Configured with `volume-max: 200` on the native player instance.
-4. **Dialogue Normalization:** Audio filter switch applying `lavfi=[dynaudnorm=f=75:g=15:p=0.95:m=10]` to boost whisper-quiet voices and compress overly loud sound effects.
+2. **Hardware Acceleration Engine:** Configurable hardware decoding (`enableHardwareAcceleration` in `AddonConfig`) mapped to `VideoControllerConfiguration(enableHardwareAcceleration: ...)` (MediaCodec on Android, DXVA2/D3D11 on Windows) with MPV `hwdec` dynamic switching (`auto-safe` vs `no`).
+3. **In-Player HW/SW Quick Toggle:** Real-time toolbar toggle button with animated HUD confirmation to switch between hardware-accelerated decoding and software CPU decoding on-the-fly.
+4. **Player Routing:** Support for Embedded Player, VLC for Android, Just Player, or system intent Chooser via `defaultPlayerEngine`.
+5. **Stream Intelligence:** Automatically detects Live IPTV streams (`.m3u8` / `.ts`): hides VOD seek bars, displays live latency status, and auto-reconnects on network interruptions.
+6. **200% VLC Super Audio Gain:** Configured with `volume-max: 200` on the native player instance.
+7. **Dialogue Normalization:** Audio filter switch applying `lavfi=[dynaudnorm=f=75:g=15:p=0.95:m=10]` to boost whisper-quiet voices and compress overly loud sound effects.
 
 ### ⚠️ Invariant 12: Collapsible 68px Icon-Only Sidebar Navigation
 Across Android, Windows desktop, and the Web UI (`lib/web_ui.dart`):
@@ -508,10 +511,16 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 
 ---
 
-## 12. In-App Video Player (`media_kit` / `libmpv`) & Super Audio Gain
+## 12. In-App Video Player (`media_kit` / `libmpv`), Hardware Acceleration & Super Audio Gain
 - **Architecture & Foundation:**
   - Built with `media_kit` (FFI bindings to `libmpv`) supporting hardware-accelerated 4K HEVC/AV1/H.264 playback across Android and Windows.
   - Implements dedicated `PlayerScreen` (`android_app/lib/player_screen.dart`) with auto-hiding gesture/mouse overlay, buffering indicator, and live progress reporting.
+- **Hardware Acceleration Engine & In-Player HW/SW Switcher:**
+  - Configurable hardware-accelerated decoding via `enableHardwareAcceleration` in `AddonConfig`.
+  - Maps to `VideoControllerConfiguration(enableHardwareAcceleration: ...)` using native Android MediaCodec / Windows DXVA2/D3D11 backends.
+  - In-player HUD button toggles `hwdec` dynamically between `auto-safe` and `no` without terminating the active stream.
+- **Default Player Engine Routing:**
+  - Configurable default engine in settings (`defaultPlayerEngine`): `'embedded'`, `'vlc'`, `'justplayer'`, or `'chooser'`.
 - **Smart IPTV / VOD Adaptation:**
   - Detects live IPTV `.m3u8` streams and switches off standard timeline scrubbing while activating real-time latency indicators and infinite reconnect logic.
 - **200% VLC Super Audio Gain:**
@@ -520,7 +529,16 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 
 ---
 
-## 13. Nuvio-Style Side Navigation Rail & Dedicated About View
+## 13. Modular Component-Driven UI Architecture (`android_app/lib/ui/`)
+- **Philosophy:** Decouples the monolithic `main.dart` into specialized, isolated, and TV D-Pad remote compatible UI components.
+- **Widgets:**
+  - **`TvFocusableButton` (`android_app/lib/ui/tv_focusable_button.dart`):** Reusable remote focus widget with D-Pad hardware keybindings (`Select`, `Enter`, `Space`, `GameButtonA`), animated scale transitions (1.04x), high-contrast glow (`#38BDF8`), and automatic view centering (`Scrollable.ensureVisible`).
+  - **`CatalogBrowserWidget` (`android_app/lib/ui/catalog_browser_widget.dart`):** Encapsulates catalogue category tabs, genre pills, sort dropdowns (*Trending, New Digital Releases, Popular, Top Rated, Airing Today*), and responsive media poster cards with playback progress indicators.
+  - **`SeriesBrowserWidget` (`android_app/lib/ui/series_browser_widget.dart`):** Encapsulates TV season selector bar, responsive episode lists, still thumbnails, multi-line plot synopses, and 1-tap stream triggers.
+
+---
+
+## 14. Nuvio-Style Side Navigation Rail & Dedicated About View
 - **Multi-Platform Navigation Architecture:**
   - **Collapsible Compact Navigation Rail:** Defaults to **68px icon-only width** across Windows desktop, Android TV/tablet, and the Web UI (`web_ui.dart`) to maximize media browse surface. Smooth expand/collapse toggle reveals full labels on user demand.
   - **Compact Screens (Mobile Portrait):** Top responsive selector (`_buildTabSelector`) that collapses gracefully.
@@ -533,7 +551,7 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 
 ---
 
-## 14. TorBox Cached Torrents Engine & 0 P2P Architecture
+## 15. TorBox Cached Torrents Engine & 0 P2P Architecture
 - **Strict 0 P2P Philosophy:**
   - Standard torrenting requires uploading blocks back to the peer swarm (P2P), consuming bandwidth and exposing IP addresses.
   - Hostreamio enforces a **Strict 0 P2P Guarantee**:
@@ -549,7 +567,7 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 
 ---
 
-## 15. Prowlarr-Style Captcha Resolver & Origin-Fresh Anti-Cache Architecture
+## 16. Prowlarr-Style Captcha Resolver & Origin-Fresh Anti-Cache Architecture
 - **`ProxyResolverService` (`lib/proxy_resolver.dart`):**
   - Connects to FlareSolverr or Prowlarr-compatible captcha proxy solver (`proxyResolverUrl`).
   - Automatically intercepts Cloudflare Turnstile, IUAM ("Just a moment..."), and DDOS-GUARD challenges.
@@ -560,7 +578,7 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 
 ---
 
-## 16. Troubleshooting & Known Traps
+## 17. Troubleshooting & Known Traps
 
 | Symptom | Root Cause | Solution |
 |---|---|---|

@@ -80,6 +80,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // Subscriptions
   final List<StreamSubscription> _subscriptions = [];
 
+  // Hardware Acceleration State
+  bool _isHardwareAccelerationEnabled = AddonConfig.instance.enableHardwareAcceleration;
+
   // Playback Speed State
   double _playbackSpeed = 1.0;
   static const List<double> _speedOptions = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
@@ -128,18 +131,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       );
 
-      // Unlock volume-max to 200% for audio gain boost
+      // Configure native libmpv properties: volume gain & hardware decoding
       if (_player.platform is NativePlayer) {
         final np = _player.platform as NativePlayer;
         try {
           await np.setProperty('volume-max', '200');
+          // 'auto-safe' enables native GPU / ExoPlayer / MediaCodec decoding on Android & DXVA/D3D11 on Windows
+          await np.setProperty('hwdec', _isHardwareAccelerationEnabled ? 'auto-safe' : 'no');
         } catch (_) {}
       }
 
       _controller = VideoController(
         _player,
-        configuration: const VideoControllerConfiguration(
-          enableHardwareAcceleration: true,
+        configuration: VideoControllerConfiguration(
+          enableHardwareAcceleration: _isHardwareAccelerationEnabled,
         ),
       );
 
@@ -376,6 +381,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _showHud('Subtitle load failed');
       }
     }
+  }
+
+  Future<void> _toggleHardwareAcceleration() async {
+    final next = !_isHardwareAccelerationEnabled;
+    setState(() {
+      _isHardwareAccelerationEnabled = next;
+    });
+    AddonConfig.instance.enableHardwareAcceleration = next;
+    AddonConfig.instance.scheduleSave();
+
+    if (_player.platform is NativePlayer) {
+      final np = _player.platform as NativePlayer;
+      try {
+        await np.setProperty('hwdec', next ? 'auto-safe' : 'no');
+      } catch (_) {}
+    }
+
+    _showHud(next ? '⚡ HW Acceleration: ON (Native GPU/ExoPlayer)' : '🛡️ HW Acceleration: OFF (Software Fallback)');
   }
 
   /// Clears the currently loaded external subtitle.
@@ -1635,7 +1658,45 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
                 const SizedBox(width: 6),
 
-                // Playback Speed Control Button
+                // Hardware Acceleration Toggle Button
+                InkWell(
+                  onTap: _toggleHardwareAcceleration,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _isHardwareAccelerationEnabled
+                          ? const Color(0xFF195FEB).withOpacity(0.2)
+                          : const Color(0xFF161B22),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _isHardwareAccelerationEnabled ? const Color(0xFF195FEB) : const Color(0xFF30363D),
+                        width: _isHardwareAccelerationEnabled ? 1.2 : 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isHardwareAccelerationEnabled ? Icons.memory_rounded : Icons.developer_board_off_rounded,
+                          color: _isHardwareAccelerationEnabled ? const Color(0xFF58A6FF) : Colors.white60,
+                          size: 15,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isHardwareAccelerationEnabled ? 'HW' : 'SW',
+                          style: TextStyle(
+                            color: _isHardwareAccelerationEnabled ? const Color(0xFF58A6FF) : Colors.white60,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
                 if (!live)
                   PopupMenuButton<double>(
                     tooltip: 'Playback Speed',

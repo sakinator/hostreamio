@@ -36,11 +36,18 @@ A high-performance local Stremio & Nuvio-compatible addon server featuring **70 
 - **Direct Subtitle APIs (OpenSubtitles v3):** Integrated official zero-rate-limit OpenSubtitles v3 REST API delivering subtitles in 90+ languages with direct `.srt` downloads and a user-facing toggle in settings (`enableOpenSubtitles`).
 - **Expanded DDL Hosters (Direct & TorBox):** Direct streaming and TorBox cloud caching across **PixelDrain, GoFile, Buzzheavier, Qiwi, MultiUp, Krakenfiles, Mixdrop, Voe, Filemoon, Doodstream, Streamtape**, and **HubCloud**.
 - **Free Global Live IPTV Broadcasts (`iptv-org`):** Over 8,000+ free broadcast channels with live Search, Category filters (*News, Sports, Movies, Animation, Music, Entertainment, Documentary*), and Country filters (*Global, US, UK, IN, CA, FR, DE, ES, IT, AU, JP, BR*). Available both in the native Android app and as the Stremio addon catalog `iptv_global`.
-- **In-App Video Player (`media_kit` / `libmpv`) & 200% VLC Super Audio Gain:**
+- **In-App Video Player (`media_kit` / `libmpv`), Hardware Acceleration & 200% VLC Super Audio Gain:**
   - Embedded cross-platform video player (`PlayerScreen`) for Android TV, Mobile, and Windows Desktop with hardware-accelerated 4K HEVC/AV1/H.264 rendering.
+  - **Configurable Hardware Acceleration (HW/SW):** Native MediaCodec decoding on Android / ExoPlayer backend and DXVA2/D3D11 on Windows via `VideoControllerConfiguration(enableHardwareAcceleration: ...)`.
+  - **In-Player HW/SW Quick Toggle:** Real-time on-the-fly hardware decoding toggle button (`HW` / `SW`) located in the player controls toolbar with instant HUD feedback (`⚡ Hardware Decoding Enabled` vs `💻 Software Decoding Enabled`).
+  - **Configurable Default Player Routing:** Choose between `Embedded Player (Hardware Accelerated)`, `VLC for Android`, `Just Player`, or `Always Ask (External Chooser)` in Settings.
   - **200% VLC Super Gain:** Amplifies audio up to 200% with floating volume HUD pill and quick-jump preset pills (`100%`, `125%`, `150%`, `200%`).
   - **Dialogue Normalizer:** Real-time FFmpeg `dynaudnorm` filter toggle (`lavfi=[dynaudnorm=f=75:g=15:p=0.95:m=10]`) boosts quiet whispers while softening deafening action explosions.
   - **Smart IPTV / VOD Adaptation:** Automatically detects live IPTV `.m3u8` streams, removes VOD timeline scrubbing, displays live latency status, and auto-reconnects on network drops.
+- **Modular Component-Driven UI Architecture (`android_app/lib/ui/`):**
+  - **`TvFocusableButton`:** TV Remote / D-Pad-optimized focusable widget with animated scale transitions, high-contrast glow (`#38BDF8`), automatic scroll-into-view (`Scrollable.ensureVisible`), and hardware remote button activations (`Select`, `Enter`, `GameButtonA`).
+  - **`CatalogBrowserWidget`:** Decoupled, reusable catalogue browser featuring dynamic genre filter chips, sort dropdowns (*Trending, New Digital Releases, Popular, Top Rated*), and poster cards with progress indicators.
+  - **`SeriesBrowserWidget`:** Modular TV series season & episode navigator supporting horizontal season tabs, episode still thumbnails, multi-line plot synopses, and direct stream scrapers.
 - **Dual Windows Binaries (Desktop GUI + Headless Server Daemon):**
   - **`hostreamio.exe`:** Full native Flutter desktop application with embedded brand icon, 5-tab UI, video player, and theater.
   - **`hostreamio-cli.exe`:** Standalone headless HTTP server daemon (`dart compile exe bin/server.dart`) listening on port 7002.
