@@ -1,5 +1,5 @@
 // AUTO-GENERATED SCRAPER REGISTRY - DO NOT EDIT MANUALLY
-// Generated at: 2026-10-20T14:27:34.168031
+// Generated at: 2026-10-20T14:50:43.317990
 // Run "dart run tool/generate_registry.dart" or "pipeline/update.ps1" to regenerate.
 
 import 'upstream/services/scraper/stream_scraper.dart';
@@ -7,6 +7,7 @@ import 'upstream/services/scraper/sites/a111477.dart';
 import 'upstream/services/scraper/sites/animepahe.dart';
 import 'upstream/services/scraper/sites/asian_drama_torrent.dart';
 import 'upstream/services/scraper/sites/bcine.dart';
+import 'upstream/services/scraper/sites/bilibili.dart';
 import 'upstream/services/scraper/sites/bolly4u.dart';
 import 'upstream/services/scraper/sites/bollyflix.dart';
 import 'upstream/services/scraper/sites/cinejoy.dart';
@@ -29,6 +30,7 @@ import 'upstream/services/scraper/sites/fsonic.dart';
 import 'upstream/services/scraper/sites/fsonline.dart';
 import 'upstream/services/scraper/sites/gogoanime.dart';
 import 'upstream/services/scraper/sites/hdhub4u.dart';
+import 'upstream/services/scraper/sites/hdobox.dart';
 import 'upstream/services/scraper/sites/hexa.dart';
 import 'upstream/services/scraper/sites/hianime.dart';
 import 'upstream/services/scraper/sites/hindmoviez.dart';
@@ -54,6 +56,7 @@ import 'upstream/services/scraper/sites/playdesi.dart';
 import 'upstream/services/scraper/sites/purstream.dart';
 import 'upstream/services/scraper/sites/rivestream.dart';
 import 'upstream/services/scraper/sites/shortdrama.dart';
+import 'upstream/services/scraper/sites/sportzxlive.dart';
 import 'upstream/services/scraper/sites/tamilian.dart';
 import 'upstream/services/scraper/sites/tamilmv.dart';
 import 'upstream/services/scraper/sites/tamilultra.dart';
@@ -88,6 +91,7 @@ class ScraperRegistry {
     AnimePaheScraper(),
     AsianDramaTorrentScraper(),
     BcineScraper(),
+    BilibiliScraper(),
     Bolly4uScraper(),
     BollyflixScraper(),
     CinejoyScraper(),
@@ -110,6 +114,7 @@ class ScraperRegistry {
     FSOnlineScraper(),
     GogoanimeScraper(),
     HDHub4uScraper(),
+    HDOBoxScraper(),
     HexaScraper(),
     HiAnimeScraper(),
     HindMoviezScraper(),
@@ -135,6 +140,7 @@ class ScraperRegistry {
     PurstreamScraper(),
     RiveStreamScraper(),
     ShortDramaScraper(),
+    SportzXLiveScraper(),
     TamilianScraper(),
     TamilmvScraper(),
     TamilUltraScraper(),

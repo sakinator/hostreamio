@@ -5121,6 +5121,12 @@ class WebUI {
         return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'K-Drama, C-Drama & J-Drama episodes with multi-server HLS & soft subtitles'};
       case 'shortdrama':
         return {'icon': '📱', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Vertical micro-dramas (DramaBox, ReelShort, ShortMax) with unlocked episodes'};
+      case 'bilibili':
+        return {'icon': '⛩️', 'scope': '⛩️ Asian', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Asian Donghua, Anime & Bilibili TV international platform streams'};
+      case 'hdobox':
+        return {'icon': '⚡', 'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'HDO Box streaming cluster with adaptive HLS & multi-language subtitles'};
+      case 'sportzxlive':
+        return {'icon': '🏏', 'scope': '🌐 Global', 'quality': '1080p FHD', 'tech': '⚡ Fast HLS', 'desc': 'Live sports streams (Cricket, Football, F1) & global sports events'};
       case 'nyaa':
         return {'icon': '⛩️', 'scope': '⛩️ Anime', 'quality': '1080p/4K', 'tech': '☁️ TorBox Cloud', 'desc': 'World largest Anime & Asian media tracker via 100% cloud-cached TorBox debrid'};
       case 'yts':

@@ -871,6 +871,9 @@ class ScraperEngine {
     'einthusan': 'einthusan.tv',
     'mlsbd': 'mlsbd.co',
     'tamilultra': 'tamilultra.co.uk',
+    'hdobox': 'api.hdo.app',
+    'bilibili': 'bilibili.tv',
+    'sportzxlive': 'sportzx.live',
   };
 
   static String extractDomain(String url) {
