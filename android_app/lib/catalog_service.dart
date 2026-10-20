@@ -250,10 +250,12 @@ class CatalogService {
             'name': 'genre',
             'options': [
               'All',
+              '🔥 Popular Short & Full Dramas',
               'Trending K-Dramas',
               'Chinese Dramas (C-Drama)',
               'Anime & Donghua',
-              'Vertical Micro-Dramas',
+              '📱 Vertical Micro-Dramas',
+              'Full-Screen Drama Cuts',
               'DramaBox Unlocked',
               'ReelShort Hits',
               'ShortMax & Sereal+',
@@ -885,9 +887,9 @@ class CatalogService {
               'poster': img,
               'nativePoster': img,
               'background': img,
-              'description': 'Live vertical micro-drama: $title.\n📱 Format: Vertical Short Drama • ⚡ Free Stream',
-              'releaseInfo': '2024 • Micro-Drama',
-              'genres': [genre ?? 'Trending Micro-Dramas', 'Short Drama'],
+              'description': 'Popular Asian & Short Drama: $title.\n🎬 Links include Full-Screen Drama compilations & Vertical reels • ⚡ Fast HD Stream',
+              'releaseInfo': '2024 • Short & Full Drama',
+              'genres': ['Popular Short & Full Dramas', genre ?? 'Micro-Dramas', 'Short & Full Drama'],
               'posterShape': 'poster',
               'url': link,
             };
@@ -1494,15 +1496,29 @@ class CatalogService {
       final epsCount = (item?['episodes'] as int?) ?? 60;
       final episodesList = List.generate(epsCount, (idx) {
         final epNum = idx + 1;
+        String arc = 'Part $epNum';
+        if (epNum <= 15) {
+          arc = 'Part $epNum: The Setup';
+        } else if (epNum <= 35) {
+          arc = 'Part $epNum: The Conflict';
+        } else if (epNum <= 50) {
+          arc = 'Part $epNum: The Climax';
+        } else {
+          arc = 'Part $epNum: The Finale';
+        }
+
         return {
           'id': '$baseId:1:$epNum',
           'season': 1,
           'episode': epNum,
-          'name': 'Episode $epNum',
+          'name': 'Episode $epNum: $arc',
           'thumbnail': resolvedPoster,
-          'overview': 'Episode $epNum of $resolvedName',
+          'overview': 'Vertical / Full-Screen HD • Episode $epNum • Complete Cut or Reel Stream',
         };
       });
+
+      final dramaDesc = item?['description']?.toString() ??
+          'Popular Asian & Short Drama: $resolvedName.\n🎬 Links include Full-Screen complete drama & Vertical reels • ⚡ Fast Stream';
 
       return {
         'id': id,
@@ -1510,8 +1526,10 @@ class CatalogService {
         'name': resolvedName,
         'poster': resolvedPoster,
         'background': resolvedPoster,
-        'description': item?['description'] ?? 'Vertical short drama mini-series.',
-        'genres': item?['genres'] ?? ['Micro-Drama', 'Short Drama'],
+        'description': dramaDesc.contains('Full-Screen')
+            ? dramaDesc
+            : '$dramaDesc\n🎬 Links include Full-Screen Drama compilations and Vertical reels.',
+        'genres': item?['genres'] ?? ['Popular Short & Full Dramas', 'Asian Dramas', 'Short & Full-Screen'],
         'seasons': [1],
         'episodesBySeason': {
           '1': episodesList,

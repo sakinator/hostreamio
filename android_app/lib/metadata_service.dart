@@ -721,7 +721,7 @@ class MetadataService {
               'episode': epNum,
               'name': 'Episode $epNum',
               'thumbnail': epPoster,
-              'overview': 'Season $sNum Episode $epNum of $seriesName',
+              'overview': 'Episode $epNum of $seriesName',
             };
           });
           episodesBySeason[sNum.toString()] = epList;
@@ -740,6 +740,44 @@ class MetadataService {
             'overview': 'Episode 1 of $seriesName',
           }
         ];
+      }
+
+      // Dynamically fetch rich per-episode synopses, titles and still photos for Season 1 from TMDb
+      final tmdbId = tmdbData['id'];
+      final primarySeason = seasonsList.isNotEmpty ? seasonsList.first : 1;
+      if (tmdbId != null) {
+        try {
+          final sUri = Uri.parse('$_tmdbDirect/tv/$tmdbId/season/$primarySeason?api_key=$_apiKey');
+          final sRes = await http.get(sUri, headers: _headers).timeout(const Duration(seconds: 4));
+          if (sRes.statusCode == 200) {
+            final sData = jsonDecode(sRes.body);
+            final sEps = (sData['episodes'] as List?) ?? [];
+            if (sEps.isNotEmpty) {
+              episodesBySeason[primarySeason.toString()] = sEps.map<Map<String, dynamic>>((ep) {
+                final epNum = ep['episode_number'] as int? ?? 1;
+                final epName = ep['name']?.toString() ?? 'Episode $epNum';
+                final epOverview = ep['overview']?.toString() ?? '';
+                final epStill = ep['still_path'] != null
+                    ? 'https://image.tmdb.org/t/p/w500${ep['still_path']}'
+                    : seriesPoster;
+                final airDate = ep['air_date']?.toString() ?? '';
+                final runtime = ep['runtime'] != null ? '${ep['runtime']}m' : '';
+                return {
+                  'id': '$baseId:$primarySeason:$epNum',
+                  'season': primarySeason,
+                  'episode': epNum,
+                  'name': epName,
+                  'thumbnail': epStill,
+                  'overview': epOverview.isNotEmpty
+                      ? epOverview
+                      : (airDate.isNotEmpty ? 'Aired: $airDate • Episode $epNum of $seriesName' : 'Episode $epNum of $seriesName'),
+                  'airDate': airDate,
+                  'runtime': runtime,
+                };
+              }).toList();
+            }
+          }
+        } catch (_) {}
       }
 
       final rating = (tmdbData['vote_average'] is num)

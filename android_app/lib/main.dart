@@ -230,10 +230,12 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       'id': 'asian_dramas',
       'genres': [
         'All',
+        '🔥 Popular Short & Full Dramas',
         'Trending K-Dramas',
         'Chinese Dramas (C-Drama)',
         'Anime & Donghua',
-        'Vertical Micro-Dramas',
+        '📱 Vertical Micro-Dramas',
+        'Full-Screen Drama Cuts',
         'DramaBox Unlocked',
         'ReelShort Hits',
         'ShortMax & Sereal+',
@@ -4878,11 +4880,14 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                               ),
                               if (ep['overview'] != null && ep['overview'].toString().isNotEmpty)
-                                Text(
-                                  ep['overview'].toString(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    ep['overview'].toString(),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400, height: 1.25),
+                                  ),
                                 ),
                             ],
                           ),
