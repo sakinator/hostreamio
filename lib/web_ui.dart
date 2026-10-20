@@ -1954,6 +1954,7 @@ class WebUI {
       <div id="catalogTabNav" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border);">
         <button class="stream-filter-chip active" id="ctab-trending-movie" onclick="switchCatalogTab('trending-movie')">🔥 Trending Movies</button>
         <button class="stream-filter-chip" id="ctab-trending-series" onclick="switchCatalogTab('trending-series')">📺 Trending Series</button>
+        <button class="stream-filter-chip" id="ctab-short_dramas" onclick="switchCatalogTab('short_dramas')">📱 Short Dramas</button>
         <button class="stream-filter-chip" id="ctab-yt_indian" onclick="switchCatalogTab('yt_indian')">🎬 YouTube Indian</button>
         <button class="stream-filter-chip" id="ctab-yt_international" onclick="switchCatalogTab('yt_international')">🌍 YouTube Intl</button>
         <button class="stream-filter-chip" id="ctab-vimeo_picks" onclick="switchCatalogTab('vimeo_picks')">🎥 Vimeo</button>
@@ -3155,6 +3156,8 @@ class WebUI {
     const _catalogMeta = {
       'trending-movie':    { label:'🔥 Trending Movies',    type:'movie',  src:'cinemeta', id:'top' },
       'trending-series':   { label:'📺 Trending Series',    type:'series', src:'cinemeta', id:'top' },
+      'short_dramas':      { label:'📱 Short Dramas',       type:'series', src:'local',    id:'short_dramas',
+        genres:['All','Trending Micro-Dramas','DramaBox Unlocked','ReelShort Hits','ShortMax & Sereal+','Billionaire Romance','Werewolf & Alpha','Revenge & CEO'] },
       'yt_indian':         { label:'🎬 YouTube Indian',      type:'movie',  src:'local',    id:'yt_indian',
         genres:['All','Bollywood Full Movies','South Hindi Dubbed','Indian Web Series','Classic Hindi','Comedy Hindi Movies'] },
       'yt_international':  { label:'🌍 YouTube Intl',        type:'movie',  src:'local',    id:'yt_international',
