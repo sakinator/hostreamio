@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 /// auto-scrolling on Android TV, subtle scaling animation, and responsive feedback.
 class TvFocusableButton extends StatefulWidget {
   final FocusNode? focusNode;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Widget child;
   final bool isPrimary;
   final Color? primaryColor;
@@ -17,7 +17,7 @@ class TvFocusableButton extends StatefulWidget {
   const TvFocusableButton({
     super.key,
     this.focusNode,
-    required this.onPressed,
+    this.onPressed,
     required this.child,
     this.isPrimary = false,
     this.primaryColor,
@@ -60,7 +60,7 @@ class _TvFocusableButtonState extends State<TvFocusableButton> {
       onShowHoverHighlight: (hovered) => setState(() => _isHovered = hovered),
       actions: {
         ActivateIntent: CallbackAction<ActivateIntent>(
-          onInvoke: (_) => widget.onPressed(),
+          onInvoke: (_) => widget.onPressed?.call(),
         ),
       },
       shortcuts: const {
