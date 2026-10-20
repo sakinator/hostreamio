@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:html/parser.dart' as html_parser;
 import 'config.dart';
 import 'omdb_service.dart';
 import 'torbox_service.dart';
@@ -756,15 +757,93 @@ class CatalogService {
     },
   ];
 
-  // ── Internet Archive Fetcher ────────────────────────────────────────────────
-  /// Fetches vertical short and micro-dramas from curated aggregators
+  // ── Vertical Short & Micro-Dramas Fetcher (Dynamic Live Aggregator) ────────
+  /// Fetches vertical short and micro-dramas dynamically from live aggregators
+  /// with automatic fallback to high-speed curated CDNs.
   Future<List<Map<String, dynamic>>> _fetchShortDramas({
     String? search,
     String? genre,
     int skip = 0,
   }) async {
-    final curatedList = shortDramaCuratedList;
+    // 1. Calculate target live page (each page holds ~39 micro-dramas)
+    final page = (skip ~/ 20) + 1;
 
+    // 2. Formulate dynamic live search/category query
+    String? liveUrl;
+    if (search != null && search.trim().isNotEmpty) {
+      final q = Uri.encodeComponent(search.trim());
+      liveUrl = (page > 1) ? 'https://dramafren.org/page/$page/?s=$q' : 'https://dramafren.org/?s=$q';
+    } else if (genre != null && genre.isNotEmpty && genre != 'All') {
+      String? keyword;
+      if (genre.contains('Werewolf') || genre.contains('Alpha')) {
+        keyword = 'alpha';
+      } else if (genre.contains('Billionaire')) {
+        keyword = 'billionaire';
+      } else if (genre.contains('Revenge') || genre.contains('CEO')) {
+        keyword = 'revenge';
+      } else if (genre.contains('ReelShort')) {
+        keyword = 'reelshort';
+      } else if (genre.contains('DramaBox')) {
+        keyword = 'dramabox';
+      } else if (genre.contains('ShortMax') || genre.contains('Sereal')) {
+        keyword = 'shortmax';
+      }
+
+      if (keyword != null) {
+        liveUrl = (page > 1) ? 'https://dramafren.org/page/$page/?s=$keyword' : 'https://dramafren.org/?s=$keyword';
+      } else {
+        liveUrl = (page > 1) ? 'https://dramafren.org/page/$page/' : 'https://dramafren.org/';
+      }
+    } else {
+      liveUrl = (page > 1) ? 'https://dramafren.org/page/$page/' : 'https://dramafren.org/';
+    }
+
+    // 3. Attempt live dynamic retrieval with fast timeout
+    try {
+      final res = await http.get(Uri.parse(liveUrl), headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final doc = html_parser.parse(res.body);
+        final postItems = doc.querySelectorAll('article.post, .film-item, article');
+        if (postItems.isNotEmpty) {
+          final dynamicList = <Map<String, dynamic>>[];
+          for (final it in postItems) {
+            final titleEl = it.querySelector('.title, h2, h3, a[title]');
+            var title = titleEl?.attributes['title'] ?? titleEl?.text.trim() ?? '';
+            title = title.replaceAll(RegExp(r'\s+'), ' ').trim();
+            title = title.replaceAll(RegExp(r'\s*-\s*EP\d+.*', caseSensitive: false), '').trim();
+            final link = it.querySelector('a')?.attributes['href'] ?? '';
+            final img = it.querySelector('img')?.attributes['src'] ?? it.querySelector('img')?.attributes['data-src'] ?? '';
+            if (title.isEmpty || img.isEmpty || !img.startsWith('http')) continue;
+
+            final cleanId = 'sd:' + title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '');
+            dynamicList.add({
+              'id': cleanId,
+              'type': 'series',
+              'name': title,
+              'poster': img,
+              'nativePoster': img,
+              'background': img,
+              'description': 'Live vertical micro-drama: $title.\n📱 Format: Vertical Short Drama • ⚡ Free Stream',
+              'releaseInfo': '2024 • Micro-Drama',
+              'genres': [genre ?? 'Trending Micro-Dramas', 'Short Drama'],
+              'posterShape': 'poster',
+              'url': link,
+            });
+          }
+          if (dynamicList.isNotEmpty) {
+            return dynamicList.take(20).toList();
+          }
+        }
+      }
+    } catch (_) {
+      // Graceful fallback to verified curated list if live portal is slow or unreachable
+    }
+
+    // 4. Fallback to rich curated list
+    final curatedList = shortDramaCuratedList;
     var list = curatedList;
     if (genre != null && genre.isNotEmpty && genre != 'All') {
       final gLower = genre.toLowerCase();
