@@ -174,4 +174,22 @@ This document defines the mandatory development, UI/UX, release, and synchroniza
   ```
 - **Post-Build Local Sync:** Immediately after every successful GitHub Actions release run, download and overwrite local copies of `hostreamio.apk`, `hostreamio.exe`, and `hostreamio-windows-x64.zip` in `D:\hostreamio` so local files match release artifacts.
 
+---
+
+## 20. Multi-Source IPTV Mirror & Live Sports Engine Invariants
+- **URL-Based Deduplication (Mirror Retention):** IPTV channels must be deduplicated strictly by normalized stream URL, NEVER by channel name or ID. Identical channel names from different CDNs, IP addresses, or sources (e.g. IPTV-Org, Pluto TV, Samsung TV Plus, Custom user M3U) must all be preserved and presented as selectable server mirrors (`[Server 1]`, `[Server 2]`).
+- **Header Injection for Protected Feeds:** Protected feeds (e.g. DaddyLive, Streamed) requiring `Referer`, `Origin`, or `User-Agent` headers must route through `/proxy?url=...&headers=...`. Both the master playlist and child segment chunks (`.ts`, `.m4s`) must inherit these headers.
+- **Automated Regression Suite Rule:** Every new feature, scraper, or catalogue route added to the engine must be accompanied by an automated test phase in `tool/test_features.dart`. All test phases must pass (`dart run tool/test_features.dart`) before committing.
+
+---
+
+## 21. Scraper Prioritization, Video Scaling, Language Tagging & DTDD Invariants
+- **Performance Tiering:** Scrapers must be grouped by performance weight (`Tier 1`: priority 100, `Tier 2`: priority 50, `Tier 3`: priority 10). High-speed direct CDNs and 4K scrapers run first.
+- **Adaptive Worker Pool:** Bounded concurrency limit (14 on Android, 22 on desktop) prevents socket exhaustion and spurious circuit-breaker trips on mobile.
+- **Audio Language Tagging:** Every stream must preserve its audio language pill (`[Hindi]`, `[Dual Audio]`, `[English]`, etc.) in both `displayName` and `badgeHeader` without being dropped by badge count caps.
+- **Video Aspect Ratio & Scaling:** Built-in player must offer 6 aspect ratio modes: `Fit to Screen (Original)`, `Fill Screen (Zoom & Crop)`, `Stretch to Fill (100% Screen)`, `16:9 Widescreen`, `4:3 Classic TV`, and `21:9 Cinematic Ultrawide`, accessible via UI button and keyboard/remote key **'R'**.
+- **DoesTheDogDie (DTDD) Accuracy:** Zero-key web extraction must bypass Cloudflare on Android using headless reader fallback (`r.jina.ai`) with HTML responses. If a title is unrated or blocked, the UI must strictly show `ℹ️ Unrated / View on DTDD ↗` and NEVER claim `✅ No Major Triggers`.
+- **Direct Stream Seeking Fidelity:** `autoUncompress` must remain `false` in `StreamProxy` to ensure `Content-Length` and HTTP `Range` headers are preserved without truncation on direct video links. MPV `force-seekable: yes` and metadata runtime fallback ensure the seekbar displays full duration.
+
+
 

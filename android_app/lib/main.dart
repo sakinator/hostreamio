@@ -32,8 +32,7 @@ void main() async {
     await WindowService.instance.initialize();
   }
   await ServerService.instance.init();
-  // Auto-start server on app launch
-  await ServerService.instance.startServer();
+  // Server is stopped by default; started manually or on-demand
   runApp(const HostreamioAddonApp());
 }
 
@@ -3770,10 +3769,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
+                  final isMatched = dtdd?['matched'] == true;
                   if (_isLoadingDtdd)
                     const Text('⏳ Checking...', style: TextStyle(fontSize: 11, color: Colors.grey))
-                  else if (dtdd == null)
-                    const Text('ℹ️ Community ratings', style: TextStyle(fontSize: 11, color: Colors.grey))
+                  else if (dtdd == null || !isMatched)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1F6FEB).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: const Color(0xFF1F6FEB).withOpacity(0.4)),
+                      ),
+                      child: const Text(
+                        'ℹ️ Unrated / View on DTDD ↗',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF58A6FF)),
+                      ),
+                    )
                   else if (hasTriggers)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -3851,10 +3862,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                         ],
                       ),
                     )
-                  else if (dtdd == null)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Text('No advisory data returned yet.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  else if (dtdd == null || !isMatched)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text('No direct trigger matches found for "$title". Tap "doesthedogdie.com ↗" above to view community ratings or submit advisories.', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     )
                   else if (triggers.isEmpty && safe.isEmpty)
                     const Padding(
@@ -4528,12 +4539,27 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     final count1080p = _scrapedStreams.where((s) => s['is1080p'] == true).length;
     final countCached = _scrapedStreams.where((s) => s['isCached'] == true).length;
     final countCachable = _scrapedStreams.where((s) => s['isCache'] == true).length;
+    final countHindi = _scrapedStreams.where((s) {
+      final t = '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase();
+      return t.contains('HINDI');
+    }).length;
+    final countEnglish = _scrapedStreams.where((s) {
+      final t = '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase();
+      return t.contains('ENGLISH') || t.contains('[ENG]');
+    }).length;
+    final countDual = _scrapedStreams.where((s) {
+      final t = '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase();
+      return t.contains('DUAL AUDIO') || t.contains('MULTI AUDIO');
+    }).length;
 
     var filtered = _scrapedStreams;
     if (_activeStreamFilter == '4k') filtered = _scrapedStreams.where((s) => s['is4K'] == true).toList();
     else if (_activeStreamFilter == '1080p') filtered = _scrapedStreams.where((s) => s['is1080p'] == true).toList();
     else if (_activeStreamFilter == 'cached') filtered = _scrapedStreams.where((s) => s['isCached'] == true).toList();
     else if (_activeStreamFilter == 'cachable') filtered = _scrapedStreams.where((s) => s['isCache'] == true).toList();
+    else if (_activeStreamFilter == 'hindi') filtered = _scrapedStreams.where((s) => '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase().contains('HINDI')).toList();
+    else if (_activeStreamFilter == 'english') filtered = _scrapedStreams.where((s) => '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase().contains('ENGLISH') || '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase().contains('[ENG]')).toList();
+    else if (_activeStreamFilter == 'dual') filtered = _scrapedStreams.where((s) => '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase().contains('DUAL AUDIO') || '${s['cleanName']} ${s['cleanTitle']}'.toUpperCase().contains('MULTI AUDIO')).toList();
     else if (_activeStreamFilter == 'direct') filtered = _scrapedStreams.where((s) => s['isCached'] != true && s['isCache'] != true).toList();
 
     return Column(
@@ -4549,6 +4575,9 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             if (count1080p > 0) _buildStreamFilterChip('1080p', '1080p ($count1080p)'),
             if (countCached > 0) _buildStreamFilterChip('cached', '⚡ Cached ($countCached)'),
             if (countCachable > 0) _buildStreamFilterChip('cachable', '🌐 TorBox Cachable ($countCachable)'),
+            if (countHindi > 0) _buildStreamFilterChip('hindi', '🗣️ Hindi ($countHindi)'),
+            if (countEnglish > 0) _buildStreamFilterChip('english', '🗣️ English ($countEnglish)'),
+            if (countDual > 0) _buildStreamFilterChip('dual', '🌐 Dual/Multi ($countDual)'),
             _buildStreamFilterChip('direct', 'Direct Play'),
           ],
         ),
@@ -5072,7 +5101,45 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       badges.add(_buildFusionBadge(fileSize, bg: const Color(0xFFE11D48), border: const Color(0xFFFB7185), textColor: const Color(0xFFFB7185), icon: Icons.save_rounded));
     }
 
-    // 10. Stream delivery flags
+    // 10. Language Badges (Gold/Amber for Dual/Multi Audio, Orange for Hindi, Cyan for English/Tamil/Telugu, etc.)
+    final langBadges = <String>[];
+    if (combined.contains('DUAL AUDIO') || combined.contains('DUAL-AUDIO')) langBadges.add('Dual Audio');
+    if (combined.contains('MULTI AUDIO') || combined.contains('MULTI-AUDIO')) langBadges.add('Multi Audio');
+    if (combined.contains('HINDI')) langBadges.add('Hindi');
+    if (combined.contains('TAMIL')) langBadges.add('Tamil');
+    if (combined.contains('TELUGU')) langBadges.add('Telugu');
+    if (combined.contains('MALAYALAM')) langBadges.add('Malayalam');
+    if (combined.contains('KANNADA')) langBadges.add('Kannada');
+    if (combined.contains('BENGALI')) langBadges.add('Bengali');
+    if (combined.contains('PUNJABI')) langBadges.add('Punjabi');
+    if (combined.contains('MARATHI')) langBadges.add('Marathi');
+    if (combined.contains('GUJARATI')) langBadges.add('Gujarati');
+    if (combined.contains('URDU')) langBadges.add('Urdu');
+    if (combined.contains('ENGLISH') || combined.contains('[ENG]')) langBadges.add('English');
+    if (combined.contains('JAPANESE') || combined.contains('[JAP]')) langBadges.add('Japanese');
+    if (combined.contains('KOREAN') || combined.contains('[KOR]')) langBadges.add('Korean');
+    if (combined.contains('CHINESE') || combined.contains('[CHI]')) langBadges.add('Chinese');
+    if (combined.contains('SPANISH') || combined.contains('[ESP]')) langBadges.add('Spanish');
+    if (combined.contains('FRENCH') || combined.contains('[FRE]') || combined.contains('VFF')) langBadges.add('French');
+    if (combined.contains('GERMAN') || combined.contains('[GER]')) langBadges.add('German');
+    if (combined.contains('ITALIAN') || combined.contains('[ITA]')) langBadges.add('Italian');
+    if (combined.contains('PORTUGUESE') || combined.contains('[POR]')) langBadges.add('Portuguese');
+    if (combined.contains('RUSSIAN') || combined.contains('[RUS]')) langBadges.add('Russian');
+    if (combined.contains('ARABIC') || combined.contains('[ARA]')) langBadges.add('Arabic');
+
+    for (final l in langBadges.take(2)) {
+      if (l == 'Dual Audio' || l == 'Multi Audio') {
+        badges.add(_buildFusionBadge('🌐 $l', bg: const Color(0xFFB45309), border: const Color(0xFFF59E0B), textColor: const Color(0xFFFDE68A)));
+      } else if (l == 'Hindi') {
+        badges.add(_buildFusionBadge('🗣️ Hindi', bg: const Color(0xFFC2410C), border: const Color(0xFFFB923C), textColor: const Color(0xFFFED7AA)));
+      } else if (l == 'English') {
+        badges.add(_buildFusionBadge('🗣️ English', bg: const Color(0xFF0369A1), border: const Color(0xFF38BDF8), textColor: const Color(0xFFBAE6FD)));
+      } else {
+        badges.add(_buildFusionBadge('🗣️ $l', bg: const Color(0xFF0F766E), border: const Color(0xFF2DD4BF), textColor: const Color(0xFFCCFBF1)));
+      }
+    }
+
+    // 11. Stream delivery flags
     if (combined.contains('HLS STREAM') || combined.contains('.M3U8')) {
       badges.add(_buildFusionBadge('HLS', bg: const Color(0xFF1E293B), border: const Color(0xFF475569), textColor: const Color(0xFF94A3B8)));
     }
@@ -5257,13 +5324,53 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     });
 
     try {
+      List<dynamic> rawList = [];
       final port = AddonConfig.instance.port;
-      final url = Uri.parse('http://127.0.0.1:$port/stream/$type/${Uri.encodeComponent(id)}.json');
-      final res = await http.get(url).timeout(const Duration(seconds: 50));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final rawList = (data is Map && data['streams'] is List) ? data['streams'] as List : [];
+      final localBaseUrl = 'http://127.0.0.1:$port';
 
+      // 1. If server is running, query local HTTP endpoint
+      if (ServerService.instance.isRunning.value) {
+        try {
+          final url = Uri.parse('$localBaseUrl/stream/$type/${Uri.encodeComponent(id)}.json');
+          final res = await http.get(url).timeout(const Duration(seconds: 45));
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body);
+            if (data is Map && data['streams'] is List) {
+              rawList = data['streams'] as List;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. In-Process Direct Fallback: Scrapes directly in-memory if server is stopped!
+      if (rawList.isEmpty) {
+        // Resolve custom prefix streams (sd:, iptv:, sport:, yt:, etc.)
+        final customStreams = await CatalogService.instance.resolveCustomStreams(type, id, localBaseUrl: localBaseUrl);
+        if (customStreams.isNotEmpty) {
+          rawList.addAll(customStreams.map((s) => s.toJson()));
+        }
+
+        // Resolve metadata and scrape PlayTorrio providers directly in-memory
+        final mediaMeta = await MetadataService.instance.resolveMedia(id, type, fallbackTitle: title);
+        if (mediaMeta != null) {
+          final scraped = await ScraperEngine.instance.scrapeAll(meta: mediaMeta, localBaseUrl: localBaseUrl);
+          rawList.addAll(scraped.map((s) => s.toJson()));
+
+          if (AddonConfig.instance.enablePublicStreams) {
+            try {
+              final publicStreams = await CatalogService.instance.searchPublicStreams(
+                title: mediaMeta.title,
+                year: mediaMeta.year,
+                type: mediaMeta.type,
+                localBaseUrl: localBaseUrl,
+              );
+              rawList.addAll(publicStreams.map((s) => s.toJson()));
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (rawList.isNotEmpty) {
         // Unify and group streams by underlying source so each file displays as a single card!
         final groupedMap = <String, Map<String, dynamic>>{};
         for (final item in rawList) {
@@ -5518,6 +5625,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     final playUrl = _resolvePlayUrl(streamTarget);
     if (playUrl.isEmpty) return;
 
+    if (!ServerService.instance.isRunning.value &&
+        (playUrl.contains('127.0.0.1') || playUrl.contains('/proxy') || playUrl.contains('/torbox'))) {
+      await ServerService.instance.startServer();
+    }
+
     String title = '';
     String subtitle = '';
     Map<String, String>? headers;
@@ -5562,6 +5674,18 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         });
 
         final mediaId = _selectedMediaMeta?['id']?.toString() ?? (isLive ? null : title);
+        Duration? expectedDuration;
+        final rawRuntime = _selectedMediaMeta?['runtime']?.toString();
+        if (rawRuntime != null && rawRuntime.isNotEmpty) {
+          final m = RegExp(r'(\d+)').firstMatch(rawRuntime);
+          if (m != null) {
+            final minutes = int.tryParse(m.group(1)!);
+            if (minutes != null && minutes > 0) {
+              expectedDuration = Duration(minutes: minutes);
+            }
+          }
+        }
+
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => PlayerScreen(
@@ -5575,6 +5699,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               mediaId: mediaId,
               mediaType: isLive ? null : _selectedMediaType,
               isLive: isLive,
+              expectedDuration: expectedDuration,
               onPositionChanged: (posMs, durMs) {
                 if (mounted && _watchHistory.isNotEmpty) {
                   final idx = _watchHistory.indexWhere((h) => h['url'] == playUrl);

@@ -29,6 +29,8 @@ class PlayerScreen extends StatefulWidget {
   final bool isLive;
   /// Callback when player progress changes (for updating parent history)
   final void Function(int positionMs, int durationMs)? onPositionChanged;
+  /// Expected total duration (from metadata runtime) to fall back on if direct stream lacks index/headers
+  final Duration? expectedDuration;
 
   const PlayerScreen({
     super.key,
@@ -42,6 +44,7 @@ class PlayerScreen extends StatefulWidget {
     this.mediaType,
     this.isLive = false,
     this.onPositionChanged,
+    this.expectedDuration,
   });
 
   @override
@@ -58,6 +61,151 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Duration _buffer = Duration.zero;
   bool _isPlaying = false;
   bool _isBuffering = true;
+
+  // Aspect Ratio & Scaling Mode: 'fit', 'fill', 'stretch', '16:9', '4:3', '21:9'
+  String _aspectRatioMode = 'fit';
+
+  BoxFit get _videoFit {
+    switch (_aspectRatioMode) {
+      case 'fill':
+        return BoxFit.cover;
+      case 'stretch':
+        return BoxFit.fill;
+      default:
+        return BoxFit.contain;
+    }
+  }
+
+  Future<void> _setAspectRatioMode(String mode) async {
+    setState(() => _aspectRatioMode = mode);
+    if (_player.platform is NativePlayer) {
+      final np = _player.platform as NativePlayer;
+      try {
+        if (mode == '16:9') {
+          await np.setProperty('video-aspect-override', '16/9');
+        } else if (mode == '4:3') {
+          await np.setProperty('video-aspect-override', '4/3');
+        } else if (mode == '21:9') {
+          await np.setProperty('video-aspect-override', '21/9');
+        } else {
+          await np.setProperty('video-aspect-override', '-1');
+        }
+      } catch (_) {}
+    }
+    _showHud('Aspect Ratio: ${_aspectRatioLabel(mode)}');
+  }
+
+  String _aspectRatioLabel(String mode) {
+    switch (mode) {
+      case 'fit':
+        return 'Fit to Screen (Original)';
+      case 'fill':
+        return 'Fill Screen (Zoom & Crop)';
+      case 'stretch':
+        return 'Stretch to Fill (100% Screen)';
+      case '16:9':
+        return '16:9 Widescreen';
+      case '4:3':
+        return '4:3 Classic TV';
+      case '21:9':
+        return '21:9 Cinematic Ultrawide';
+      default:
+        return mode;
+    }
+  }
+
+  void _cycleAspectRatio() {
+    const modes = ['fit', 'fill', 'stretch', '16:9', '4:3', '21:9'];
+    final idx = modes.indexOf(_aspectRatioMode);
+    final next = modes[(idx + 1) % modes.length];
+    _setAspectRatioMode(next);
+  }
+
+  void _showAspectRatioDialog() {
+    final modes = [
+      {'id': 'fit', 'title': 'Fit to Screen (Original)', 'sub': 'Preserves native aspect ratio with black bars if needed', 'icon': Icons.fit_screen_rounded},
+      {'id': 'fill', 'title': 'Fill Screen (Zoom & Crop)', 'sub': 'Eliminates black bars by zooming in without distorting', 'icon': Icons.crop_free_rounded},
+      {'id': 'stretch', 'title': 'Stretch to Fill', 'sub': 'Stretches video to 100% of display (fixes squashed IPTV)', 'icon': Icons.fullscreen_rounded},
+      {'id': '16:9', 'title': '16:9 Widescreen', 'sub': 'Forces modern 16:9 widescreen proportions', 'icon': Icons.tv_rounded},
+      {'id': '4:3', 'title': '4:3 Classic TV', 'sub': 'Forces standard 4:3 box ratio (fixes stretched old TV feeds)', 'icon': Icons.aspect_ratio_rounded},
+      {'id': '21:9', 'title': '21:9 Cinematic Ultrawide', 'sub': 'Forces 2.39:1 / 21:9 ultra-wide theatrical ratio', 'icon': Icons.movie_filter_rounded},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF11141C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.aspect_ratio_rounded, color: Color(0xFF58A6FF), size: 22),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Video Aspect Ratio & Scaling',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...modes.map((m) {
+                      final isSelected = (_aspectRatioMode == m['id']);
+                      return ListTile(
+                        leading: Icon(m['icon'] as IconData, color: isSelected ? const Color(0xFF58A6FF) : Colors.white70),
+                        title: Text(
+                          m['title'] as String,
+                          style: TextStyle(
+                            color: isSelected ? const Color(0xFF58A6FF) : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          m['sub'] as String,
+                          style: const TextStyle(color: Colors.grey, fontSize: 11),
+                        ),
+                        trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: Color(0xFF58A6FF), size: 20) : null,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        onTap: () {
+                          _setAspectRatioMode(m['id'] as String);
+                          setModalState(() {});
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Duration get _effectiveDuration {
+    if (_isLiveStream) return Duration.zero;
+    if (_duration.inMinutes >= 15) return _duration;
+    if (widget.expectedDuration != null && widget.expectedDuration! > const Duration(minutes: 15)) {
+      return widget.expectedDuration!;
+    }
+    return _duration;
+  }
   bool _hasError = false;
   String _errorMessage = '';
 
@@ -125,22 +273,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Future<void> _initPlayer() async {
     try {
       _player = Player(
-        configuration: const PlayerConfiguration(
-          bufferSize: 32 * 1024 * 1024, // 32MB buffer for smooth 4K Debrid & IPTV playback
+        configuration: PlayerConfiguration(
+          bufferSize: Platform.isAndroid ? 16 * 1024 * 1024 : 32 * 1024 * 1024,
           logLevel: MPVLogLevel.warn,
         ),
       );
 
-      // Configure native libmpv properties: volume gain & hardware decoding
+      // Configure native libmpv properties: volume gain, seeking, hardware decoding, and buffer limits
       if (_player.platform is NativePlayer) {
         final np = _player.platform as NativePlayer;
         try {
           await np.setProperty('volume-max', '200');
+          await np.setProperty('force-seekable', 'yes');
+          await np.setProperty('hr-seek', 'default');
+          await np.setProperty('cache', 'yes');
+          await np.setProperty('cache-secs', '30');
+          await np.setProperty('demuxer-readahead-secs', '25');
           // On Android, media_kit renders to Flutter textures; 'mediacodec-copy' ensures rock-solid hardware decoding
           // without crashing the surface texture, while 'auto-safe' is used on desktop (D3D11/DXVA).
           if (Platform.isAndroid) {
+            await np.setProperty('demuxer-max-bytes', '20971520'); // 20MB limit for Android TV
+            await np.setProperty('demuxer-max-back-bytes', '10485760'); // 10MB back buffer
             await np.setProperty('hwdec', _isHardwareAccelerationEnabled ? 'mediacodec-copy' : 'no');
           } else {
+            await np.setProperty('demuxer-max-bytes', '67108864'); // 64MB desktop
+            await np.setProperty('demuxer-max-back-bytes', '16777216');
             await np.setProperty('hwdec', _isHardwareAccelerationEnabled ? 'auto-safe' : 'no');
           }
         } catch (_) {}
@@ -196,8 +353,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
           if (mounted) {
             setState(() => _duration = dur);
             // Execute automatic resume if not already performed
-            if (!_isLiveStream && !_hasResumed && dur > const Duration(seconds: 30)) {
-              _attemptAutoResume(dur);
+            final effDur = _effectiveDuration;
+            if (!_isLiveStream && !_hasResumed && effDur > const Duration(seconds: 30)) {
+              _attemptAutoResume(effDur);
             }
           }
         }),
@@ -275,7 +433,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _saveResumePosition(int posMs) {
     if (_isLiveStream || posMs <= 0) return;
-    final durMs = _duration.inMilliseconds;
+    final durMs = _effectiveDuration.inMilliseconds;
     // Don't save if finished (>95%)
     if (durMs > 0 && posMs >= durMs * 0.95) {
       AddonConfig.instance.resumePositions.remove(_resumeKey);
@@ -796,6 +954,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _showSubtitlePicker();
     } else if (key == LogicalKeyboardKey.keyA) {
       _showAudioGainDialog();
+    } else if (key == LogicalKeyboardKey.keyR) {
+      _cycleAspectRatio();
     } else if (key == LogicalKeyboardKey.escape) {
       if (_showShortcutHelp) {
         setState(() => _showShortcutHelp = false);
@@ -816,8 +976,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _seekRelative(int seconds) {
     final target = _position + Duration(seconds: seconds);
+    final effMs = _effectiveDuration.inMilliseconds;
     final clamped = Duration(
-      milliseconds: target.inMilliseconds.clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0),
+      milliseconds: target.inMilliseconds.clamp(0, effMs > 0 ? effMs : 0),
     );
     _player.seek(clamped);
   }
@@ -891,11 +1052,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
             if (_isHorizontalGesture) {
               // Horizontal swipe → seek
-              if (!_isLiveStream && _duration.inSeconds > 0) {
+              final effDur = _effectiveDuration;
+              if (!_isLiveStream && effDur.inSeconds > 0) {
                 final screenWidth = MediaQuery.of(context).size.width;
                 final seekSeconds = (dx / screenWidth * 120).round();
                 final target = _position + Duration(seconds: seekSeconds);
-                final clamped = Duration(milliseconds: target.inMilliseconds.clamp(0, _duration.inMilliseconds));
+                final clamped = Duration(milliseconds: target.inMilliseconds.clamp(0, effDur.inMilliseconds));
                 _showHud('${seekSeconds > 0 ? '+' : ''}${seekSeconds}s → ${_formatDuration(clamped)}');
               }
             } else {
@@ -911,7 +1073,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
             }
           },
           onPanEnd: (details) {
-            if (_isHorizontalGesture && !_isLiveStream && _duration.inSeconds > 0) {
+            final effDur = _effectiveDuration;
+            if (_isHorizontalGesture && !_isLiveStream && effDur.inSeconds > 0) {
               // Commit seek on release
               final dx = _gestureStart != null
                   ? (details.velocity.pixelsPerSecond.dx / 10 + (_gestureStart!.dx))
@@ -932,6 +1095,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 child: Video(
                   controller: _controller,
                   controls: NoVideoControls,
+                  fit: _videoFit,
+                  alignment: Alignment.center,
                 ),
               ),
 
@@ -1484,8 +1649,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final totalW = constraints.maxWidth;
-                        final bufferRatio = _duration.inMilliseconds > 0
-                            ? (_buffer.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+                        final effDur = _effectiveDuration;
+                        final totalMs = effDur.inMilliseconds;
+                        final bufferRatio = totalMs > 0
+                            ? (_buffer.inMilliseconds / totalMs).clamp(0.0, 1.0)
                             : 0.0;
                         return Stack(
                           alignment: Alignment.centerLeft,
@@ -1510,12 +1677,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                               ),
                               child: Slider(
-                                value: _duration.inMilliseconds > 0
-                                    ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+                                value: totalMs > 0
+                                    ? (_position.inMilliseconds / totalMs).clamp(0.0, 1.0)
                                     : 0.0,
                                 onChanged: (ratio) {
                                   _showControlsTemporarily();
-                                  final target = Duration(milliseconds: (_duration.inMilliseconds * ratio).round());
+                                  final target = Duration(milliseconds: (totalMs * ratio).round());
                                   _player.seek(target);
                                 },
                               ),
@@ -1526,7 +1693,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
                   Text(
-                    _formatDuration(_duration),
+                    _formatDuration(_effectiveDuration),
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
@@ -1697,6 +1864,46 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           style: TextStyle(
                             color: _isHardwareAccelerationEnabled ? const Color(0xFF58A6FF) : Colors.white60,
                             fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
+                // Aspect Ratio & Video Scaling Button (Fit, Fill, Stretch, 16:9, 4:3, 21:9 for VOD & IPTV)
+                InkWell(
+                  onTap: _showAspectRatioDialog,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _aspectRatioMode != 'fit'
+                          ? const Color(0xFF195FEB).withOpacity(0.2)
+                          : const Color(0xFF161B22),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _aspectRatioMode != 'fit' ? const Color(0xFF58A6FF) : const Color(0xFF30363D),
+                        width: _aspectRatioMode != 'fit' ? 1.2 : 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.aspect_ratio_rounded,
+                          color: _aspectRatioMode != 'fit' ? const Color(0xFF58A6FF) : Colors.white70,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _aspectRatioMode.toUpperCase(),
+                          style: TextStyle(
+                            color: _aspectRatioMode != 'fit' ? const Color(0xFF58A6FF) : Colors.white70,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

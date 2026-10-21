@@ -7,7 +7,7 @@
   <p align="center"><i>High-Performance Stream Engine for Nuvio & Stremio (Windows & Android TV / Mobile)</i></p>
 
   [![Vibe Coded](https://img.shields.io/badge/Vibe%20Coded-100%25%20with%20AI-ff0c82?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://github.com/sakinator/hostreamio)
-  [![Scrapers](https://img.shields.io/badge/Scrapers-63%20Cloud%20Extractors-195feb?style=for-the-badge)](https://github.com/sakinator/hostreamio)
+  [![Scrapers](https://img.shields.io/badge/Scrapers-85%20Stream%20Engines-195feb?style=for-the-badge)](https://github.com/sakinator/hostreamio)
   [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Android%20TV%20%26%20Mobile-f55014?style=for-the-badge)](https://github.com/sakinator/hostreamio)
   [![Debrid](https://img.shields.io/badge/TorBox-Cloud%20WebDL%20Caching-0070f3?style=for-the-badge)](https://torbox.app)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
@@ -16,15 +16,15 @@
 > [!NOTE]
 > **✨ 100% Vibe Coded with AI:** This entire project is vibe-coded through continuous human-AI agentic collaboration, real-time feedback loops, automated regression test suites, and live self-healing pipelines. High velocity, zero bloat, pure vibes.
 
-A high-performance local Stremio & Nuvio-compatible addon server featuring **70 Stream & Scraper Engines**, **TorBox Debrid Integration**, **TorBox Cached Torrents Toggle (Default OFF • 0 P2P Guarantee)**, **Prowlarr Captcha Resolver & Anti-Cache**, and rich public catalogs (**YouTube, Vimeo, Internet Archive & Dailymotion**) with automatic badge tagging, native 16:9 widescreen video posters, and embedded streaming proxy.
+A high-performance local Stremio & Nuvio-compatible addon server featuring **85 Stream & Scraper Engines**, **TorBox Debrid Integration**, **TorBox Cached Torrents Toggle (Default OFF • 0 P2P Guarantee)**, **Multi-Source IPTV & FAST Feeds**, **Live Sports Schedule Aggregator**, **Prowlarr Captcha Resolver & Anti-Cache**, and rich public catalogs (**YouTube, Vimeo, Internet Archive & Dailymotion**) with automatic badge tagging, native 16:9 widescreen video posters, and embedded streaming proxy.
 
 ---
 
 ## 🌟 Features
 
 - **100% Non-Torrent by Default (Zero P2P Philosophy):** No seeders, no torrent clients, and no IP seeding exposure. Streams directly from fast cloud storage, regional CDNs, and HTTP/HLS broadcasts.
-- **70 Scraper Providers & Community Integrations:**
-  - **Direct Cloud & HLS Scrapers (63 engines):** Extracts streams across *Bolly4u, DramaDay, MoviesDrive, UHDMovies, MoviesMod, MultiMovies, ToonStream, 4KHDHub, Bollyflix, HDHub4u, Vegamovies, Vadapav, HindMoviez, PlayDesi, YoMovies, RiveStream, LookMovie, VidLink, Movy, Videasy, Cinejoy, FlyStream, X-Downloader, Vuflix, FSOnline, KissKH, Megasource, Nova, Purstream*, and more.
+- **85 Scraper Providers & Community Integrations:**
+  - **Direct Cloud & HLS Scrapers (78 engines):** Extracts streams across *Bolly4u, DramaDay, MoviesDrive, UHDMovies, MoviesMod, MultiMovies, ToonStream, 4KHDHub, Bollyflix, HDHub4u, Vegamovies, Vadapav, HindMoviez, PlayDesi, YoMovies, RiveStream, LookMovie, VidLink, Movy, Videasy, Cinejoy, FlyStream, X-Downloader, Vuflix, FSOnline, KissKH, Megasource, Nova, Purstream, KickAssAnime, BestSeries, M4uHD, MyAsianTV*, and more.
   - **Community Torrent Scrapers (TorBox Cached Only):** *Nyaa.si* (Anime Community), *1TamilMV / TamilBlasters* (Desi & Indian Regional), *AsianDrama Torrent* (Nyaa Live Action), *YTS.mx API*, *EZTV API*, *Knaben*, and *TorrentGalaxy* (PlayTorrio).
 - **TorBox Cached Torrents Toggle (Strictly Default OFF • 0 P2P Guarantee):**
   - Interactive toggle in Settings & Server tab. When OFF, 0 torrent scrapers are queried.
@@ -32,10 +32,35 @@ A high-performance local Stremio & Nuvio-compatible addon server featuring **70 
 - **Prowlarr-Style Captcha Resolver & Anti-Cache:**
   - Automated FlareSolverr proxy bridge (`ProxyResolverService`) that solves Cloudflare Turnstile, IUAM challenges, and captures clearance cookies (`cf_clearance`).
   - Origin-fresh cache-bypass headers (`Cache-Control: no-cache, no-store, max-age=0`, `Pragma: no-cache`, query nonces) to avoid stale or blocked ISP cache hits.
-- **Dedicated Anime Engine (Zero Bloat):** Powered by **HiAnime / Zoro** (#1 best) with **Gogoanime** (#2 fallback) featuring clean `[SUB]` and `[DUB]` tags, absolute episode resolution, and zero P2P torrent overhead.
+- **Dedicated Anime Engine (Zero Bloat):** Powered by **HiAnime / Zoro**, **AnimePahe**, and **KickAssAnime** with clean `[SUB]` and `[DUB]` tags, absolute episode resolution, and zero P2P torrent overhead.
 - **Direct Subtitle APIs (OpenSubtitles v3):** Integrated official zero-rate-limit OpenSubtitles v3 REST API delivering subtitles in 90+ languages with direct `.srt` downloads and a user-facing toggle in settings (`enableOpenSubtitles`).
 - **Expanded DDL Hosters (Direct & TorBox):** Direct streaming and TorBox cloud caching across **PixelDrain, GoFile, Buzzheavier, Qiwi, MultiUp, Krakenfiles, Mixdrop, Voe, Filemoon, Doodstream, Streamtape**, and **HubCloud**.
-- **Free Global Live IPTV Broadcasts (`iptv-org`):** Over 8,000+ free broadcast channels with live Search, Category filters (*News, Sports, Movies, Animation, Music, Entertainment, Documentary*), and Country filters (*Global, US, UK, IN, CA, FR, DE, ES, IT, AU, JP, BR*). Available both in the native Android app and as the Stremio addon catalog `iptv_global`.
+- **Multi-Source Live IPTV & FAST Feeds (IPTV-Org, Pluto TV & Samsung TV Plus):**
+  - **URL-Based Deduplication (Mirror Retention):** Deduplication is keyed on unique stream URLs. Multiple IP feeds/CDNs for the same channel name are preserved as selectable servers (`[Server 1 • Pluto TV]`, `[Server 2 • IPTV-Org]`).
+  - **Pluto TV & Samsung TV Plus 1080p Ingestion:** 800+ legal, high-speed 1080p FAST channels integrated alongside 8,000+ iptv-org channels.
+  - **Custom User M3U/M3U8 Feeds:** Add custom playlist URLs or local files directly via `AddonConfig` and the in-app modal.
+  - **Header Injection Proxy:** Automatically routes protected streams (DaddyLive, Streamed) through `/proxy?url=...&headers=...` with full `.ts`/`.m4s` segment header rewriting.
+- **Live Sports Events Aggregator (`LiveSportsService`):**
+  - Aggregates 250+ live fixtures across Soccer, Cricket, Basketball, Motorsports, Fighting/MMA, and Tennis.
+  - Resolves playable streams for `sport:<id>` with live countdown badges (`🔴 LIVE NOW`, `In 15m`).
+- **Performance-Tiered Scraper Prioritization & Adaptive Worker Pool:**
+  - Scrapers are structured into **Tier 1 (High Performance: direct fast CDNs, 4K aggregators, top seeds)**, **Tier 2 (Reliable secondary & regional)**, and **Tier 3 (Long-tail / Heavy extractors)**.
+  - Bounded concurrency worker pool (14 concurrent workers on Android, 22 on desktop) executes top performers first, eliminating socket pool exhaustion, dropped DNS handshakes, and accidental circuit-breaker trips on mobile.
+- **Audio Language Tagging per Link & Stream Filter Chips:**
+  - Guaranteed language pill display (`[Hindi]`, `[Dual Audio]`, `[English]`, `[Tamil]`, `[Telugu]`, `[Japanese]`, `[Korean]`, etc.) in both `displayName` and `badgeHeader` without truncation.
+  - One-tap stream filter chips (`🗣️ Hindi`, `🗣️ English`, `🌐 Dual/Multi`, `4K`, `1080p`, `⚡ Cached`) for instantaneous language and quality filtering.
+- **Video Aspect Ratio & Scaling Controls (Movies, Series & IPTV):**
+  - Integrated ratio selector in `PlayerScreen` for both VOD and live IPTV broadcasts to fix squashed, tall, or short anamorphic streams.
+  - 6 instant modes: **Fit to Screen (Original)**, **Fill Screen (Zoom & Crop)**, **Stretch to Fill (100% Screen)**, **16:9 Widescreen**, **4:3 Classic TV**, and **21:9 Cinematic Ultrawide**.
+  - Accessible via the on-screen player controls button and keyboard / remote shortcut (**'R'**).
+- **DoesTheDogDie (DTDD) Android Cloudflare Bypass & Zero-Key Fallback:**
+  - Resolves DoesTheDogDie triggers seamlessly on Android via zero-key headless reader fallback (`r.jina.ai`) bypassing Cloudflare TLS fingerprinting and extracting all 42 triggers for titles like *Hope* (2026).
+  - Eliminates false "✅ No Major Triggers" positive UI display when content is unrated or blocked, cleanly displaying `ℹ️ Unrated / View on DTDD ↗`.
+- **Direct Stream Seeking & Duration Fix:**
+  - Enabled `autoUncompress = false` in `StreamProxy` to preserve raw byte ranges and exact `Content-Length` headers, preventing truncated durations on direct MP4/MKV links.
+  - Native MPV `force-seekable: yes`, tuned demuxer limits (20MB Android / 64MB desktop), and metadata runtime fallback ensure the seekbar displays full movie duration and supports smooth HTTP Range seeking.
+- **19-Phase Automated Regression Suite:**
+  - Executed via `dart run tool/test_features.dart` covering 85 PlayTorrio HTTP scrapers, scraper performance priority tiers, language tagging, IPTV multi-mirror ingestion, live sports resolution, keystore integrity, and 100% byte parity between `lib/` and `android_app/lib/`.
 - **In-App Video Player (`media_kit` / `libmpv`), Hardware Acceleration & 200% VLC Super Audio Gain:**
   - Embedded cross-platform video player (`PlayerScreen`) for Android TV, Mobile, and Windows Desktop with hardware-accelerated 4K HEVC/AV1/H.264 rendering.
   - **Configurable Hardware Acceleration (HW/SW):** Native MediaCodec decoding on Android / ExoPlayer backend and DXVA2/D3D11 on Windows via `VideoControllerConfiguration(enableHardwareAcceleration: ...)`.

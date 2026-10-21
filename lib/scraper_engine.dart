@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'scraper_registry.dart';
 import 'config.dart';
 import 'metadata_service.dart';
@@ -174,6 +175,34 @@ class ScraperEngine {
     return future;
   }
 
+  /// Returns a performance priority weight for a scraper (higher = executed earlier).
+  /// Prioritizes fast direct CDNs, 4K aggregators, and top debrid torrent sources.
+  static int getScraperPriority(String providerId) {
+    final id = providerId.toLowerCase();
+    // Tier 1: Fastest direct CDNs, 4K streams, top debrid/torrent seeds (Weight 100)
+    const tier1 = {
+      'movy', 'cinejoy', 'vidsrc', 'hexa', 'flystream', 'rivestream',
+      'meowtv', 'dulo', 'movienight', 'megasource', 'fourkhdhub', 'uhdmovies',
+      'vegamovies', 'bollyflix', 'moviesmod', 'yts', 'eztv', 'knaben',
+      'nyaa', 'torrentgalaxy', 'kickassanime', 'bestseries', 'animepahe',
+      'hianime', 'gogoanime'
+    };
+    if (tier1.contains(id)) return 100;
+
+    // Tier 2: High reliability aggregators & top regional hubs (Weight 50)
+    const tier2 = {
+      'm4uhd', 'myasiantv', 'mapple', 'nova', 'hdhub4u', 'moviesdrive',
+      'bcine', 'cinesrc', 'cinesu', 'dramacool', 'kissasian', 'kisskh',
+      'lookmovie', 'multiembed', 'multimovies', 'peestream', 'purstream',
+      'vadapav', 'vidapi', 'videasy', 'vidfast', 'vidlink', 'vixsrc',
+      'vuflix', 'zxcstream'
+    };
+    if (tier2.contains(id)) return 50;
+
+    // Tier 3: Standard long-tail and niche scrapers (Weight 10)
+    return 10;
+  }
+
   Future<List<ScrapedStream>> _doScrapeAll({
     required MediaMetadata meta,
     required String localBaseUrl,
@@ -192,77 +221,96 @@ class ScraperEngine {
       return true;
     }).toList();
 
+    // Sort scrapers by performance tier so high-speed direct CDNs and best links run first
+    scrapers.sort((a, b) => getScraperPriority(b.providerId).compareTo(getScraperPriority(a.providerId)));
+
     final timeout = Duration(seconds: cfg.timeoutSeconds);
 
     print('[ScraperEngine] Scraping "${meta.title}" (${meta.year ?? 'N/A'}, ${meta.type}) '
-        'across ${scrapers.length} active scrapers (${allActive.length - scrapers.length} tripped, timeout: ${cfg.timeoutSeconds}s)...');
+        'across ${scrapers.length} active prioritized scrapers (${allActive.length - scrapers.length} tripped, timeout: ${cfg.timeoutSeconds}s)...');
 
-    // Each scraper collects into its own list to avoid concurrent-write races.
-    final futures = scrapers.map((scraper) async {
-      final localResults = <StreamSource>[];
-      final completer = Completer<void>();
-      StreamSubscription<StreamSource>? sub;
-      try {
-        final stream = scraper.scrapeStream(
-          type: meta.type,
-          title: meta.title,
-          year: meta.year,
-          season: meta.season,
-          episode: meta.episode,
-          imdbId: meta.imdbId,
-        );
-        sub = stream.listen(
-          (item) {
-            final realScraper = resolveSourceName(scraper.providerId, scraper.providerName);
-            String itemProv = item.providerName ?? '';
-            if (itemProv.isEmpty ||
-                itemProv.toLowerCase().contains('playtorrio') ||
-                itemProv.toLowerCase().contains('megascraper') ||
-                itemProv.toLowerCase().contains('unbound') ||
-                itemProv.toLowerCase().contains('hosthound') ||
-                itemProv.toLowerCase() == 'hostreamio') {
-              final itemName = item.name ?? '';
-              if (itemName.isNotEmpty &&
-                  !itemName.toLowerCase().contains('playtorrio') &&
-                  !itemName.toLowerCase().contains('hostreamio') &&
-                  !itemName.toLowerCase().contains('megascraper')) {
-                final cleanItemName = itemName.replaceAll(RegExp(r'^\[+|\]+$'), '').trim();
-                itemProv = cleanItemName.isNotEmpty ? cleanItemName : realScraper;
-              } else {
-                itemProv = realScraper;
+    // Adaptive concurrency worker pool:
+    // Avoids socket connection exhaustion and timeouts on mobile/Android while keeping throughput high.
+    final int concurrencyLimit = Platform.isAndroid ? 14 : 22;
+    final perScraperResults = <List<StreamSource>>[];
+    int nextIndex = 0;
+
+    Future<void> runWorker() async {
+      while (true) {
+        if (nextIndex >= scrapers.length) return;
+        final scraper = scrapers[nextIndex++];
+        final localResults = <StreamSource>[];
+        final completer = Completer<void>();
+        StreamSubscription<StreamSource>? sub;
+        try {
+          final stream = scraper.scrapeStream(
+            type: meta.type,
+            title: meta.title,
+            year: meta.year,
+            season: meta.season,
+            episode: meta.episode,
+            imdbId: meta.imdbId,
+          );
+          sub = stream.listen(
+            (item) {
+              final realScraper = resolveSourceName(scraper.providerId, scraper.providerName);
+              String itemProv = item.providerName ?? '';
+              if (itemProv.isEmpty ||
+                  itemProv.toLowerCase().contains('playtorrio') ||
+                  itemProv.toLowerCase().contains('megascraper') ||
+                  itemProv.toLowerCase().contains('unbound') ||
+                  itemProv.toLowerCase().contains('hosthound') ||
+                  itemProv.toLowerCase() == 'hostreamio') {
+                final itemName = item.name ?? '';
+                if (itemName.isNotEmpty &&
+                    !itemName.toLowerCase().contains('playtorrio') &&
+                    !itemName.toLowerCase().contains('hostreamio') &&
+                    !itemName.toLowerCase().contains('megascraper')) {
+                  final cleanItemName = itemName.replaceAll(RegExp(r'^\[+|\]+$'), '').trim();
+                  itemProv = cleanItemName.isNotEmpty ? cleanItemName : realScraper;
+                } else {
+                  itemProv = realScraper;
+                }
               }
-            }
 
-            localResults.add(item.copyWith(
-              providerName: itemProv,
-              providerId: scraper.providerId,
-            ));
-          },
-          onError: (_) {},
-          onDone: () {
-            if (!completer.isCompleted) completer.complete();
-          },
-          cancelOnError: false,
-        );
-        await completer.future.timeout(timeout);
-      } catch (_) {
-        await sub?.cancel();
-      }
-      if (localResults.isNotEmpty) {
-        _consecutiveFailures[scraper.providerId] = 0;
-        _trippedUntil.remove(scraper.providerId);
-      } else {
-        final fails = (_consecutiveFailures[scraper.providerId] ?? 0) + 1;
-        _consecutiveFailures[scraper.providerId] = fails;
-        if (fails >= 3) {
-          _trippedUntil[scraper.providerId] = DateTime.now().add(const Duration(minutes: 10));
-          print('[CircuitBreaker] Scraper ${scraper.providerId} tripped for 10m (3 consecutive failures).');
+              localResults.add(item.copyWith(
+                providerName: itemProv,
+                providerId: scraper.providerId,
+              ));
+            },
+            onError: (_) {},
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+            cancelOnError: false,
+          );
+          await completer.future.timeout(timeout);
+        } catch (_) {
+          await sub?.cancel();
         }
-      }
-      return localResults;
-    });
 
-    final perScraperResults = await Future.wait(futures);
+        if (localResults.isNotEmpty) {
+          _consecutiveFailures[scraper.providerId] = 0;
+          _trippedUntil.remove(scraper.providerId);
+        } else {
+          final maxFails = Platform.isAndroid ? 5 : 3;
+          final fails = (_consecutiveFailures[scraper.providerId] ?? 0) + 1;
+          _consecutiveFailures[scraper.providerId] = fails;
+          if (fails >= maxFails) {
+            _trippedUntil[scraper.providerId] = DateTime.now().add(const Duration(minutes: 5));
+            print('[CircuitBreaker] Scraper ${scraper.providerId} tripped for 5m ($maxFails consecutive failures).');
+          }
+        }
+        perScraperResults.add(localResults);
+      }
+    }
+
+    final workers = List.generate(
+      concurrencyLimit.clamp(1, scrapers.length),
+      (_) => runWorker(),
+    );
+    await Future.wait(workers);
+
     // Merge sequentially – no concurrent list mutation.
     final rawResults = <StreamSource>[
       for (final list in perScraperResults) ...list,
@@ -1150,6 +1198,17 @@ class ScraperEngine {
       rank += 15;
     } else {
       rank += 5;
+    }
+
+    // Direct High-Speed CDN / Edge Provider bonus (+12 points)
+    final hostLower = detectStreamHost(s.url).toLowerCase();
+    if (hostLower.contains('cloud') ||
+        hostLower.contains('cdn') ||
+        hostLower.contains('direct') ||
+        hostLower.contains('lisbon') ||
+        hostLower.contains('solara') ||
+        hostLower.contains('torbox')) {
+      rank += 12;
     }
     return rank;
   }

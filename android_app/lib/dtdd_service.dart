@@ -236,6 +236,21 @@ class DtddService {
       }
     } catch (_) {}
 
+    // 4. Jina AI Reader Cloudflare bypass fallback (works across Android / mobile without native curl)
+    try {
+      final jinaUri = Uri.parse('https://r.jina.ai/$url');
+      final jinaRes = await http.get(
+        jinaUri,
+        headers: {
+          'x-respond-with': 'html',
+          'User-Agent': 'Hostreamio/1.0',
+        },
+      ).timeout(const Duration(seconds: 12));
+      if (jinaRes.statusCode == 200 && !jinaRes.body.contains('challenges.cloudflare.com')) {
+        return jinaRes.body;
+      }
+    } catch (_) {}
+
     return null;
   }
 
@@ -257,12 +272,38 @@ class DtddService {
           ? (RegExp(r'data-item-id="(\d+)"').firstMatch(html) ?? RegExp(r'href="/media/(\d+)"').firstMatch(html))
           : null;
 
+      // If initial search didn't yield an item (e.g. client-side JS rendered or Cloudflare challenged), query Jina Reader
+      if (mediaMatch == null) {
+        try {
+          final jinaSearchRes = await http.get(
+            Uri.parse('https://r.jina.ai/$searchUrl'),
+            headers: {'User-Agent': 'Hostreamio/1.0'},
+          ).timeout(const Duration(seconds: 10));
+          if (jinaSearchRes.statusCode == 200) {
+            mediaMatch = RegExp(r'doesthedogdie\.com\/media\/(\d+)').firstMatch(jinaSearchRes.body) ??
+                         RegExp(r'\/media\/(\d+)').firstMatch(jinaSearchRes.body);
+          }
+        } catch (_) {}
+      }
+
       // If title search did not yield an item, try searching by IMDb ID if available
       if (mediaMatch == null && imdbId.startsWith('tt') && imdbId != query) {
         final imdbSearchUrl = 'https://www.doesthedogdie.com/search?q=${Uri.encodeComponent(imdbId)}';
         final imdbHtml = await _fetchHtml(imdbSearchUrl, isAjax: true);
         if (imdbHtml != null) {
           mediaMatch = RegExp(r'data-item-id="(\d+)"').firstMatch(imdbHtml) ?? RegExp(r'href="/media/(\d+)"').firstMatch(imdbHtml);
+        }
+        if (mediaMatch == null) {
+          try {
+            final jinaImdbRes = await http.get(
+              Uri.parse('https://r.jina.ai/$imdbSearchUrl'),
+              headers: {'User-Agent': 'Hostreamio/1.0'},
+            ).timeout(const Duration(seconds: 10));
+            if (jinaImdbRes.statusCode == 200) {
+              mediaMatch = RegExp(r'doesthedogdie\.com\/media\/(\d+)').firstMatch(jinaImdbRes.body) ??
+                           RegExp(r'\/media\/(\d+)').firstMatch(jinaImdbRes.body);
+            }
+          } catch (_) {}
         }
       }
 

@@ -79,6 +79,7 @@ class StreamProxy {
   static final HttpClient _client = HttpClient()
     ..badCertificateCallback = ((X509Certificate cert, String host, int port) => true)
     ..userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    ..autoUncompress = false // CRITICAL: Preserves raw byte ranges, exact Content-Length, and avoids truncation
     ..connectionTimeout = const Duration(seconds: 15);
 
   /// Handles incoming /proxy HTTP requests.
@@ -203,7 +204,12 @@ class StreamProxy {
 
       if (isMpd && res.statusCode == HttpStatus.ok) {
         // ── MPEG-DASH to virtual HLS conversion ──
-        final bytes = await res.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+        List<int> bytes = await res.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+        if (res.headers.value('content-encoding')?.toLowerCase() == 'gzip') {
+          try {
+            bytes = gzip.decode(bytes);
+          } catch (_) {}
+        }
         final body = utf8.decode(bytes, allowMalformed: true);
         final hlsPlaylist = MpdConverter.convertMpdToHls(
           mpdXml: body,
@@ -219,7 +225,12 @@ class StreamProxy {
         await request.response.close();
       } else if (isHls && res.statusCode == HttpStatus.ok) {
         // ── Rewrite HLS playlist relative URLs ──
-        final bytes = await res.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+        List<int> bytes = await res.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+        if (res.headers.value('content-encoding')?.toLowerCase() == 'gzip') {
+          try {
+            bytes = gzip.decode(bytes);
+          } catch (_) {}
+        }
         final body = utf8.decode(bytes, allowMalformed: true);
         final rewritten = _rewriteHlsPlaylist(
           body: body,

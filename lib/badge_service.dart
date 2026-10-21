@@ -68,6 +68,15 @@ class BadgeService {
     BadgeFilter(id: 'l-urd', groupId: 'gl', name: 'Urdu', priority: 80, pattern: RegExp(r'\burdu\b', caseSensitive: false)),
     BadgeFilter(id: 'l-eng', groupId: 'gl', name: 'English', priority: 70, pattern: RegExp(r'\b(?:english|eng)\b', caseSensitive: false)),
     BadgeFilter(id: 'l-jap', groupId: 'gl', name: 'Japanese', priority: 70, pattern: RegExp(r'\b(?:japanese|jap)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-kor', groupId: 'gl', name: 'Korean', priority: 70, pattern: RegExp(r'\b(?:korean|kor)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-chi', groupId: 'gl', name: 'Chinese', priority: 70, pattern: RegExp(r'\b(?:chinese|mandarin|cantonese|chi)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-spa', groupId: 'gl', name: 'Spanish', priority: 70, pattern: RegExp(r'\b(?:spanish|latino|castellano|esp)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-fre', groupId: 'gl', name: 'French', priority: 70, pattern: RegExp(r'\b(?:french|vff|vfq|fra|fre)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-ger', groupId: 'gl', name: 'German', priority: 70, pattern: RegExp(r'\b(?:german|ger|deu)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-ita', groupId: 'gl', name: 'Italian', priority: 70, pattern: RegExp(r'\b(?:italian|ita)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-por', groupId: 'gl', name: 'Portuguese', priority: 70, pattern: RegExp(r'\b(?:portuguese|por|pt-br)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-rus', groupId: 'gl', name: 'Russian', priority: 70, pattern: RegExp(r'\b(?:russian|rus)\b', caseSensitive: false)),
+    BadgeFilter(id: 'l-ara', groupId: 'gl', name: 'Arabic', priority: 70, pattern: RegExp(r'\b(?:arabic|ara)\b', caseSensitive: false)),
 
     // Stream Source Brands (gs) - Global & India Regional OTT
     BadgeFilter(id: 's-nflx', groupId: 'gs', name: 'NETFLIX', priority: 50, pattern: RegExp(r'\b(?:nflx|netflix)\b', caseSensitive: false)),
@@ -494,6 +503,20 @@ class BadgeService {
     ];
 
     // 6. Built-in Header Badges: [OTT] [Resolution] [Release] [Visual] [Audio] [Language]
+    // Language is prioritized so it is NEVER dropped by length limits
+    String? detectedLang;
+    for (final l in [
+      'Dual Audio', 'Multi Audio', 'Hindi', 'Tamil', 'Telugu', 'Malayalam',
+      'Kannada', 'Bengali', 'Punjabi', 'Marathi', 'Gujarati', 'Bhojpuri',
+      'Urdu', 'English', 'Japanese', 'Korean', 'Chinese', 'Spanish',
+      'French', 'German', 'Italian', 'Portuguese', 'Russian', 'Arabic'
+    ]) {
+      if (detectedBadges.contains(l)) {
+        detectedLang = l;
+        break;
+      }
+    }
+
     final headerBadges = <String>[];
     if (effectiveOtt != null && effectiveOtt.isNotEmpty) {
       headerBadges.add(formatOttBadge(effectiveOtt));
@@ -504,15 +527,15 @@ class BadgeService {
     for (final b in ['Remux', 'BluRay', 'WEB-DL', 'DV', 'HDR10+', 'HDR', 'Atmos', 'DTS-HD', '5.1']) {
       if (detectedBadges.contains(b) && !headerBadges.contains(b)) {
         headerBadges.add(b);
+        if (headerBadges.length >= 4) break;
       }
     }
-    for (final l in ['Dual Audio', 'Multi Audio', 'Hindi', 'Tamil', 'Telugu', 'Malayalam', 'Kannada', 'English', 'Japanese']) {
-      if (detectedBadges.contains(l) && !headerBadges.contains(l)) {
-        headerBadges.add(l);
-        break;
-      }
+    // Always append detected language so every link clearly shows its audio track
+    if (detectedLang != null && !headerBadges.contains(detectedLang)) {
+      headerBadges.add(detectedLang);
     }
-    final badgeHeader = headerBadges.take(5).map((b) => '[$b]').join(' ');
+
+    final badgeHeader = headerBadges.map((b) => '[$b]').join(' ');
     final enrichedBadgeHeader = badgeHeader.isNotEmpty
         ? '$badgeHeader$allMarkers'
         : (resolvedRes.isNotEmpty ? '[$resolvedRes]$allMarkers' : allMarkers);

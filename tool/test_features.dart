@@ -256,7 +256,7 @@ https://restricted.stream.com/live/skyf1.m3u8
   assert(sportStreams.isNotEmpty, 'sport: prefix must resolve through CatalogService');
 
   // 18. Test High-Impact New Scrapers Registry & Domains
-  print('\n--- [18/18] Testing High-Impact New Scrapers Registry & Domains ---');
+  print('\n--- [18/19] Testing High-Impact New Scrapers Registry & Domains ---');
   final allEngScrapers = ScraperEngine.instance.getProviderList();
   print('Total Scrapers in Engine: ${allEngScrapers.length}');
   assert(allEngScrapers.length >= 85, 'Must have at least 85 scrapers registered');
@@ -269,8 +269,29 @@ https://restricted.stream.com/live/skyf1.m3u8
     assert(domain != 'N/A', 'Scraper $id must have a known site domain mapping');
   }
 
+  // 19. Test Scraper Performance Prioritization & Language Tagging Preservation
+  print('\n--- [19/19] Testing Performance Prioritization, Language Tagging & DTDD ---');
+  final movyPriority = ScraperEngine.getScraperPriority('movy');
+  final m4uPriority = ScraperEngine.getScraperPriority('m4uhd');
+  final defaultPriority = ScraperEngine.getScraperPriority('unknown');
+  print('Scraper Priorities: Tier 1 (Movy)=$movyPriority, Tier 2 (M4uHD)=$m4uPriority, Tier 3=$defaultPriority');
+  assert(movyPriority == 100, 'Tier 1 scrapers must have priority 100');
+  assert(m4uPriority == 50, 'Tier 2 scrapers must have priority 50');
+  assert(defaultPriority == 10, 'Tier 3 scrapers must have priority 10');
+
+  // Verify language tagging preservation in BadgeService
+  final enrichedHin = BadgeService.enrichStream(
+    rawTitle: 'Avatar.2009.2160p.UHD.Remux.HDR.HEVC.Atmos.Hindi.DD5.1.mkv',
+    mediaTitle: 'Avatar',
+    providerName: 'Vegamovies',
+    isCached: true,
+  );
+  print('Enriched Hindi Name: ${enrichedHin['name']}');
+  assert(enrichedHin['name']!.contains('[Hindi]'), 'Language tag [Hindi] must be preserved in display name');
+  assert(enrichedHin['badgeHeader']!.contains('[Hindi]'), 'Language tag [Hindi] must be preserved in badgeHeader');
+
   print('\n====================================================');
-  print('✅ All 18/18 regression test phases completed successfully!');
+  print('✅ All 19/19 regression test phases completed successfully!');
   print('====================================================');
   exit(0);
 }

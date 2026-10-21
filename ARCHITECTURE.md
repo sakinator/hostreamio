@@ -614,8 +614,50 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 - **`LiveSportsService` (`lib/live_sports_service.dart`):**
   - Aggregates live and upcoming fixtures across Soccer, Cricket, Basketball, Motorsports, Fighting/MMA, and Tennis.
   - Resolves playable streams for `sport:<id>` with live countdown status (`🔴 LIVE NOW`, `In 15m`).
-- **Comprehensive Regression Suite (18 Phases):**
-  - Validated via `dart run tool/test_features.dart` covering 85 PlayTorrio HTTP scrapers, IPTV multi-mirror ingestion, and 100% byte parity between `lib/` and `android_app/lib/`.
+- **Comprehensive Regression Suite (19 Phases):**
+  - Validated via `dart run tool/test_features.dart` covering 85 PlayTorrio HTTP scrapers, scraper performance priority tiers, language tagging, IPTV multi-mirror ingestion, and 100% byte parity between `lib/` and `android_app/lib/`.
+
+---
+
+## 19. Performance Prioritization, Video Aspect Ratios, Audio Language Tagging & DTDD Architecture
+
+### 1. Performance-Tiered Scraper Engine & Concurrency Worker Pool
+- **Scraper Priority Tiers (`ScraperEngine.getScraperPriority`):**
+  - **Tier 1 (Priority 100):** Ultra-fast direct CDNs & 4K aggregators (`movy`, `cinejoy`, `vidsrc`, `hexa`, `flystream`, `rivestream`, `meowtv`, `dulo`, `movienight`, `megasource`, `fourkhdhub`, `uhdmovies`, `vegamovies`, `bollyflix`, `moviesmod`, `yts`, `eztv`, `knaben`, `nyaa`, `torrentgalaxy`, `kickassanime`, `bestseries`, `animepahe`, `hianime`, `gogoanime`).
+  - **Tier 2 (Priority 50):** Reliable secondary aggregators and regional hubs (`m4uhd`, `myasiantv`, `mapple`, `nova`, `hdhub4u`, `moviesdrive`, `bcine`, `cinesrc`, `cinesu`, `dramacool`, `kissasian`, `kisskh`, `lookmovie`, `multiembed`, `multimovies`, `peestream`, `purstream`, `vadapav`, `vidapi`, `videasy`, `vidfast`, `vidlink`, `vixsrc`, `vuflix`, `zxcstream`).
+  - **Tier 3 (Priority 10):** Slower multi-hop resolvers and niche scrapers.
+- **Adaptive Worker Pool:**
+  - Bounded concurrency (14 parallel workers on Android, 22 on desktop) pulls scrapers in priority order.
+  - Eliminates socket pool exhaustion and packet drops on Android, preventing spurious circuit-breaker trips while delivering top links in the first 1-2 seconds.
+
+### 2. Audio Language Tagging & Stream Filter Chips
+- **Guaranteed Language Pill Preservation (`BadgeService.enrichStream`):**
+  - Preserves detected audio language tags (`[Hindi]`, `[Dual Audio]`, `[English]`, `[Tamil]`, `[Telugu]`, `[Japanese]`, `[Korean]`, `[Spanish]`, `[French]`, etc.) in both `displayName` and `badgeHeader` without truncation.
+- **Fast Filter Chips:**
+  - Instant one-tap filter bar in the stream selection view (`All`, `4K`, `1080p`, `⚡ Cached`, `🗣️ Hindi`, `🗣️ English`, `🌐 Dual/Multi`, `Direct Play`).
+
+### 3. Aspect Ratio & Video Scaling Controls (VOD & IPTV)
+- **Multi-Mode Scaling Engine (`PlayerScreen`):**
+  - **Fit to Screen (Original):** `BoxFit.contain` with native aspect ratio.
+  - **Fill Screen (Zoom & Crop):** `BoxFit.cover`, eliminates black bars on 21:9 movies or 4:3 TV on modern displays.
+  - **Stretch to Fill (100% Screen):** `BoxFit.fill`, stretches video to full boundaries, resolving squashed or tall anamorphic IPTV feeds.
+  - **16:9 Widescreen:** Forces native `video-aspect-override: 16/9`.
+  - **4:3 Classic TV:** Forces native `video-aspect-override: 4/3`, correcting older television channels stretched horizontally.
+  - **21:9 Cinematic Ultrawide:** Forces theatrical 2.39:1 widescreen.
+- **Controls:**
+  - Instant on-screen button in the player overlay and keyboard / remote control shortcut key (**'R'**).
+
+### 4. DoesTheDogDie (DTDD) Android Cloudflare Bypass & Strict Matching UI
+- **Headless Reader Fallback (`DtddService._fetchZeroKeyWeb`):**
+  - Bypasses Cloudflare JA3 TLS fingerprint blocks on Android using `https://r.jina.ai/` with `x-respond-with: html`, extracting all 42 community triggers for *Hope* (2026).
+- **False-Positive Elimination:**
+  - UI strictly checks `dtdd['matched'] == true`. If unrated or blocked, displays `ℹ️ Unrated / View on DTDD ↗` rather than falsely claiming `✅ No Major Triggers`.
+
+### 5. Direct Stream Seeking & Duration Resolution
+- **Range & Header Fidelity (`StreamProxy`):**
+  - Set `_client.autoUncompress = false` to prevent Dart from removing `Content-Length` or corrupting byte range headers on direct MP4/MKV streams.
+  - Set native MPV `force-seekable: yes`, `demuxer-readahead-secs: 25`, and tuned memory buffers (20MB on Android).
+  - Wired `expectedDuration` fallback from metadata runtime to ensure the seekbar accurately reflects full movie duration on unindexed streams.
 
 ---
 *Maintained under 100% Vibe Coding standards. Always preserve backward compatibility for Nuvio & Stremio manifests.*

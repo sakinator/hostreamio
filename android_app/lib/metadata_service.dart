@@ -875,6 +875,7 @@ class MetadataService {
                 'description': data['overview']?.toString() ?? '',
                 'imdbRating': data['vote_average']?.toString() ?? '',
                 'genres': (data['genres'] as List?)?.map((g) => g['name']?.toString() ?? '').toList() ?? [],
+                'runtime': data['runtime'] != null ? '${data['runtime']} min' : null,
                 'type': 'movie',
               };
             }
@@ -921,6 +922,7 @@ class MetadataService {
             'indianAgeRating': ageRatings['indian'],
             'isIndianContent': ageRatings['isIndianContent'],
             'genres': meta['genres'] ?? [],
+            'runtime': meta['runtime']?.toString(),
             'type': 'movie',
           };
         }
