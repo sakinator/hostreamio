@@ -3741,6 +3741,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     final safe = (dtdd?['safe'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final dtddUrl = dtdd?['url']?.toString() ?? 'https://www.doesthedogdie.com/search?q=${Uri.encodeComponent(title)}';
     final hasTriggers = triggers.isNotEmpty;
+    final isMatched = dtdd?['matched'] == true;
 
     return Container(
       decoration: BoxDecoration(
@@ -3769,7 +3770,6 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
                   ),
                   const SizedBox(width: 8),
-                  final isMatched = dtdd?['matched'] == true;
                   if (_isLoadingDtdd)
                     const Text('⏳ Checking...', style: TextStyle(fontSize: 11, color: Colors.grey))
                   else if (dtdd == null || !isMatched)
@@ -5347,11 +5347,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         // Resolve custom prefix streams (sd:, iptv:, sport:, yt:, etc.)
         final customStreams = await CatalogService.instance.resolveCustomStreams(type, id, localBaseUrl: localBaseUrl);
         if (customStreams.isNotEmpty) {
-          rawList.addAll(customStreams.map((s) => s.toJson()));
+          rawList.addAll(customStreams);
         }
 
         // Resolve metadata and scrape PlayTorrio providers directly in-memory
-        final mediaMeta = await MetadataService.instance.resolveMedia(id, type, fallbackTitle: title);
+        final mediaMeta = await MetadataService.resolve(type: type, rawId: id);
         if (mediaMeta != null) {
           final scraped = await ScraperEngine.instance.scrapeAll(meta: mediaMeta, localBaseUrl: localBaseUrl);
           rawList.addAll(scraped.map((s) => s.toJson()));
@@ -5364,7 +5364,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                 type: mediaMeta.type,
                 localBaseUrl: localBaseUrl,
               );
-              rawList.addAll(publicStreams.map((s) => s.toJson()));
+              rawList.addAll(publicStreams);
             } catch (_) {}
           }
         }
