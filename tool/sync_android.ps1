@@ -7,6 +7,7 @@ $sourceFiles = @(
     "dtdd_service.dart",
     "fanart_service.dart",
     "iptv_service.dart",
+    "live_sports_service.dart",
     "key_validator.dart",
     "metadata_service.dart",
     "mpd_converter.dart",

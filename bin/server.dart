@@ -9,6 +9,7 @@ import 'package:playtorrio_nuvio_addon/web_ui.dart';
 import 'package:playtorrio_nuvio_addon/catalog_service.dart';
 import 'package:playtorrio_nuvio_addon/torbox_service.dart';
 import 'package:playtorrio_nuvio_addon/iptv_service.dart';
+import 'package:playtorrio_nuvio_addon/live_sports_service.dart';
 import 'package:playtorrio_nuvio_addon/doh_resolver.dart';
 import 'package:playtorrio_nuvio_addon/key_validator.dart';
 import 'package:playtorrio_nuvio_addon/dtdd_service.dart';
@@ -346,7 +347,7 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
 
         // Check custom video streams (YouTube, Vimeo, Archive.org, Dailymotion, IPTV, Short Dramas)
         // Also scrape all other hoster/torrent sources for this title & year, sorting own links FIRST!
-        if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:') || idWithExt.startsWith('sd:') || idWithExt.startsWith('shortdrama:')) {
+        if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:') || idWithExt.startsWith('sd:') || idWithExt.startsWith('shortdrama:') || idWithExt.startsWith('sport:')) {
           final customStreamsFuture = CatalogService.instance.resolveCustomStreams(
             type, 
             idWithExt,
@@ -833,6 +834,7 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
       final country = request.uri.queryParameters['country'];
       final category = request.uri.queryParameters['category'];
       final search = request.uri.queryParameters['search'];
+      final source = request.uri.queryParameters['source'];
       final limit = int.tryParse(request.uri.queryParameters['limit'] ?? '') ?? 500;
       final skip = int.tryParse(request.uri.queryParameters['skip'] ?? '') ?? 0;
 
@@ -841,6 +843,7 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
         country: (country != null && country.isNotEmpty && country != 'All') ? country : null,
         category: (category != null && category.isNotEmpty && category != 'All') ? category : null,
         search: (search != null && search.isNotEmpty) ? search : null,
+        source: (source != null && source.isNotEmpty && source != 'All') ? source : null,
       );
 
       final total = filtered.length;
@@ -856,6 +859,57 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
       }));
       await request.response.close();
       return;
+    }
+
+    // ── 5d5. API: Live Sports Events: GET /api/iptv/sports ──────────────────
+    if (path == '/api/iptv/sports' && method == 'GET') {
+      final refresh = request.uri.queryParameters['refresh'] == 'true';
+      final events = await LiveSportsService.instance.getLiveEvents(forceRefresh: refresh);
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({
+        'success': true,
+        'count': events.length,
+        'events': events.map((e) => e.toJson()).toList(),
+      }));
+      await request.response.close();
+      return;
+    }
+
+    // ── 5d6. API: Custom M3U Playlists: GET/POST/DELETE /api/iptv/custom-playlist ──
+    if (path == '/api/iptv/custom-playlist') {
+      if (method == 'GET') {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'success': true,
+          'playlists': AddonConfig.instance.customM3uUrls,
+        }));
+        await request.response.close();
+        return;
+      }
+      if (method == 'POST') {
+        final bodyStr = await utf8.decodeStream(request);
+        final bodyJson = _safeParseJsonMap(bodyStr) ?? {};
+        final url = bodyJson['url']?.toString().trim();
+        if (url != null && url.isNotEmpty) {
+          await IptvService.instance.addCustomM3uUrl(url);
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({'success': true, 'playlists': AddonConfig.instance.customM3uUrls}));
+          await request.response.close();
+          return;
+        }
+      }
+      if (method == 'DELETE') {
+        final bodyStr = await utf8.decodeStream(request);
+        final bodyJson = _safeParseJsonMap(bodyStr) ?? {};
+        final url = bodyJson['url']?.toString().trim() ?? request.uri.queryParameters['url']?.trim();
+        if (url != null && url.isNotEmpty) {
+          await IptvService.instance.removeCustomM3uUrl(url);
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({'success': true, 'playlists': AddonConfig.instance.customM3uUrls}));
+          await request.response.close();
+          return;
+        }
+      }
     }
 
     // ── 5e. API: Save Playback & Filtering Settings: POST /api/settings ────

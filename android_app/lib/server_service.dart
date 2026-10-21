@@ -10,6 +10,8 @@ import 'scraper_engine.dart';
 import 'web_ui.dart';
 import 'catalog_service.dart';
 import 'torbox_service.dart';
+import 'iptv_service.dart';
+import 'live_sports_service.dart';
 import 'doh_resolver.dart';
 import 'key_validator.dart';
 
@@ -439,7 +441,7 @@ class ServerService {
 
           // Check custom video streams (YouTube, Vimeo, Archive.org, Dailymotion, IPTV, Short Dramas)
           // Also scrape all other hoster/torrent sources for this title & year, sorting own links FIRST!
-          if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:') || idWithExt.startsWith('sd:') || idWithExt.startsWith('shortdrama:')) {
+          if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:') || idWithExt.startsWith('sd:') || idWithExt.startsWith('shortdrama:') || idWithExt.startsWith('sport:')) {
             final customStreamsFuture = CatalogService.instance.resolveCustomStreams(
               type, 
               idWithExt,

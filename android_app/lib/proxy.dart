@@ -135,6 +135,16 @@ class StreamProxy {
         customHeaders = decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
       } catch (_) {}
     }
+    if (query['referer'] != null && query['referer']!.isNotEmpty) {
+      customHeaders['Referer'] = query['referer']!;
+    }
+    if (query['origin'] != null && query['origin']!.isNotEmpty) {
+      customHeaders['Origin'] = query['origin']!;
+    }
+    if (query['user-agent'] != null && query['user-agent']!.isNotEmpty) {
+      customHeaders['User-Agent'] = query['user-agent']!;
+    }
+    final effectiveHeadersJson = customHeaders.isNotEmpty ? jsonEncode(customHeaders) : '';
 
     try {
       final req = isHead
@@ -199,7 +209,7 @@ class StreamProxy {
           mpdXml: body,
           baseUri: targetUri,
           proxyBaseUrl: proxyBaseUrl,
-          customHeadersJson: query['headers'] ?? '',
+          customHeadersJson: effectiveHeadersJson,
           selectedRepId: repId,
         );
         final encoded = utf8.encode(hlsPlaylist);
@@ -215,7 +225,7 @@ class StreamProxy {
           body: body,
           baseUri: targetUri,
           proxyBaseUrl: proxyBaseUrl,
-          customHeadersJson: query['headers'] ?? '',
+          customHeadersJson: effectiveHeadersJson,
         );
         final encoded = utf8.encode(rewritten);
         request.response.headers.contentType = ContentType('application', 'vnd.apple.mpegurl', charset: 'utf-8');

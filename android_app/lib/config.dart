@@ -52,6 +52,7 @@ class AddonConfig {
   Map<String, int> resumePositions = {}; // id/url -> position in ms
   List<Map<String, dynamic>> watchlistItems = [];
   List<Map<String, dynamic>> watchHistoryItems = [];
+  List<String> customM3uUrls = []; // Custom user M3U/M3U8 playlist URLs or file paths
 
   static final File _configFile = File('data/config.json');
 
@@ -163,6 +164,12 @@ class AddonConfig {
               .map((e) => Map<String, dynamic>.from(e))
               .toList();
         }
+        if (map['customM3uUrls'] is List) {
+          customM3uUrls = (map['customM3uUrls'] as List)
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
       }
     } catch (e) {
       print('[AddonConfig] Error loading config: $e');
@@ -217,6 +224,7 @@ class AddonConfig {
         'resumePositions': resumePositions,
         'watchlistItems': watchlistItems,
         'watchHistoryItems': watchHistoryItems,
+        'customM3uUrls': customM3uUrls,
       };
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
       final tmpFile = File('${_configFile.path}.tmp');

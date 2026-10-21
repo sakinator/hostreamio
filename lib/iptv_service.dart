@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'config.dart';
 
 class IptvChannel {
   final String id;
@@ -10,6 +11,8 @@ class IptvChannel {
   final String category;
   final String country;
   final String url;
+  final String source;
+  final Map<String, String>? headers;
 
   IptvChannel({
     required this.id,
@@ -18,6 +21,8 @@ class IptvChannel {
     required this.category,
     required this.country,
     required this.url,
+    this.source = 'IPTV-Org',
+    this.headers,
   });
 
   Map<String, dynamic> toJson() => {
@@ -27,6 +32,8 @@ class IptvChannel {
         'category': category,
         'country': country,
         'url': url,
+        'source': source,
+        if (headers != null && headers!.isNotEmpty) 'headers': headers,
       };
 
   factory IptvChannel.fromJson(Map<String, dynamic> j) => IptvChannel(
@@ -36,17 +43,40 @@ class IptvChannel {
         category: j['category']?.toString() ?? 'General',
         country: j['country']?.toString() ?? 'Global',
         url: j['url']?.toString() ?? '',
+        source: j['source']?.toString() ?? 'IPTV-Org',
+        headers: j['headers'] is Map
+            ? (j['headers'] as Map).map((k, v) => MapEntry(k.toString(), v.toString()))
+            : null,
       );
+
+  /// Resolves playable stream URL. If stream requires headers (Referer, User-Agent, Origin),
+  /// routes through local proxy to eliminate player CORS/header restrictions.
+  String getStreamUrl({String? localBaseUrl}) {
+    if (headers != null && headers!.isNotEmpty && localBaseUrl != null && localBaseUrl.isNotEmpty) {
+      final encodedUrl = Uri.encodeComponent(url);
+      final encodedHeaders = Uri.encodeComponent(jsonEncode(headers));
+      return '$localBaseUrl/proxy?url=$encodedUrl&headers=$encodedHeaders';
+    }
+    return url;
+  }
 }
 
-/// IptvService: Loads, parses, caches, and filters 8,000+ free global broadcast
-/// streams from the open-source iptv-org project with category, country, and search filters.
+/// IptvService: Loads, parses, caches, and filters global live broadcast streams
+/// across multiple sources (IPTV-Org, Pluto TV, Samsung TV Plus, and Custom user M3U feeds).
+///
+/// Features:
+/// - URL-keyed deduplication: Identical channel names from different IPs/sources/servers are retained as mirrors!
+/// - Pluto TV & Samsung TV Plus 1080p high-speed legal FAST channel ingestion.
+/// - Custom user M3U/M3U8 playlist subscription and local caching.
+/// - Header injection via local proxy for referer-gated live streams.
 class IptvService {
   static final IptvService instance = IptvService._();
   IptvService._();
 
   static const String _m3uUrl = 'https://iptv-org.github.io/iptv/index.category.m3u';
   static const String _indiaM3uUrl = 'https://iptv-org.github.io/iptv/countries/in.m3u';
+  static const String _plutoM3uUrl = 'https://raw.githubusercontent.com/dtankdempse/pluto-tv-m3u/refs/heads/main/pluto-tv.m3u';
+  static const String _samsungM3uUrl = 'https://raw.githubusercontent.com/dtankdempse/samsung-tv-plus-m3u/refs/heads/main/samsung-tv-plus.m3u';
   static final File _cacheFile = File('data/iptv_cache.json');
 
   List<IptvChannel> _channels = [];
@@ -57,7 +87,7 @@ class IptvService {
 
   Completer<void>? _loadCompleter;
 
-  /// Loads channels from memory, local cache, or remote iptv-org M3U.
+  /// Loads channels from memory, local cache, or remote M3U feeds.
   Future<List<IptvChannel>> loadChannels({bool forceRefresh = false}) async {
     if (!forceRefresh && _channels.isNotEmpty && _lastLoaded != null) {
       if (DateTime.now().difference(_lastLoaded!).inHours < 12) {
@@ -66,7 +96,6 @@ class IptvService {
     }
 
     if (_isLoading) {
-      // Wait for the current load to complete (no CPU spin-wait)
       await _loadCompleter?.future;
       return _channels;
     }
@@ -93,7 +122,7 @@ class IptvService {
         } catch (_) {}
       }
 
-      // 2. Fetch from remote iptv-org
+      // 2. Fetch from remote M3U feeds
       await _fetchRemoteM3u();
     } finally {
       _isLoading = false;
@@ -105,7 +134,19 @@ class IptvService {
   }
 
   Future<void> _fetchRemoteM3u() async {
+    // We de-duplicate strictly by normalized stream URL so that the same channel name/id
+    // from different IPs, CDNs, or providers is preserved as playable alternative mirrors!
     final Map<String, IptvChannel> channelMap = {};
+
+    void mergeChannels(List<IptvChannel> incoming) {
+      for (final ch in incoming) {
+        final urlKey = ch.url.trim().toLowerCase();
+        if (urlKey.isEmpty) continue;
+        if (!channelMap.containsKey(urlKey)) {
+          channelMap[urlKey] = ch;
+        }
+      }
+    }
 
     // 1. Dedicated India Playlist (738+ high-speed Indian regional live channels)
     try {
@@ -113,31 +154,78 @@ class IptvService {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Hostreamio/1.0.0',
       }).timeout(const Duration(seconds: 15));
       if (inRes.statusCode == 200) {
-        final inChannels = parseM3u(inRes.body, defaultCountry: 'IN');
-        for (final ch in inChannels) {
-          final key = ch.id.isNotEmpty ? ch.id : ch.url;
-          channelMap[key] = ch;
-        }
+        final inChannels = parseM3u(inRes.body, defaultCountry: 'IN', defaultSource: 'IPTV-Org India');
+        mergeChannels(inChannels);
         print('[IptvService] Loaded ${inChannels.length} Indian live channels from iptv-org.');
       }
     } catch (e) {
       print('[IptvService] India M3U fetch error: $e');
     }
 
-    // 2. Global Category Playlist (Worldwide channels)
+    // 2. Pluto TV High-Definition FAST Channels (Legal 1080p US/Global live feeds)
+    try {
+      final plutoRes = await http.get(Uri.parse(_plutoM3uUrl), headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Hostreamio/1.0.0',
+      }).timeout(const Duration(seconds: 15));
+      if (plutoRes.statusCode == 200) {
+        final plutoChannels = parseM3u(plutoRes.body, defaultCountry: 'US', defaultSource: 'Pluto TV');
+        mergeChannels(plutoChannels);
+        print('[IptvService] Loaded ${plutoChannels.length} FAST channels from Pluto TV.');
+      }
+    } catch (e) {
+      print('[IptvService] Pluto TV M3U fetch error: $e');
+    }
+
+    // 3. Samsung TV Plus High-Definition FAST Channels (Legal 1080p feeds)
+    try {
+      final samsungRes = await http.get(Uri.parse(_samsungM3uUrl), headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Hostreamio/1.0.0',
+      }).timeout(const Duration(seconds: 15));
+      if (samsungRes.statusCode == 200) {
+        final samsungChannels = parseM3u(samsungRes.body, defaultCountry: 'US', defaultSource: 'Samsung TV+');
+        mergeChannels(samsungChannels);
+        print('[IptvService] Loaded ${samsungChannels.length} FAST channels from Samsung TV Plus.');
+      }
+    } catch (e) {
+      print('[IptvService] Samsung TV Plus M3U fetch error: $e');
+    }
+
+    // 4. Custom User M3U Playlists from AddonConfig
+    final customUrls = AddonConfig.instance.customM3uUrls;
+    for (int i = 0; i < customUrls.length; i++) {
+      final url = customUrls[i];
+      try {
+        String body = '';
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          final res = await http.get(Uri.parse(url), headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Hostreamio/1.0.0',
+          }).timeout(const Duration(seconds: 15));
+          if (res.statusCode == 200) body = res.body;
+        } else {
+          final file = File(url.replaceFirst('file://', ''));
+          if (await file.exists()) {
+            body = await file.readAsString();
+          }
+        }
+        if (body.isNotEmpty) {
+          final customChannels = parseM3u(body, defaultCountry: 'Custom', defaultSource: 'Custom #${i + 1}');
+          mergeChannels(customChannels);
+          print('[IptvService] Loaded ${customChannels.length} channels from custom feed: $url');
+        }
+      } catch (e) {
+        print('[IptvService] Custom M3U fetch error for $url: $e');
+      }
+    }
+
+    // 5. Global Category Playlist (Worldwide channels)
     try {
       final res = await http.get(Uri.parse(_m3uUrl), headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Hostreamio/1.0.0',
       }).timeout(const Duration(seconds: 20));
 
       if (res.statusCode == 200) {
-        final parsed = parseM3u(res.body);
-        for (final ch in parsed) {
-          final key = ch.id.isNotEmpty ? ch.id : ch.url;
-          if (!channelMap.containsKey(key)) {
-            channelMap[key] = ch;
-          }
-        }
+        final parsed = parseM3u(res.body, defaultSource: 'IPTV-Org Global');
+        mergeChannels(parsed);
         print('[IptvService] Total unified channels loaded: ${channelMap.length}.');
       }
     } catch (e) {
@@ -160,7 +248,12 @@ class IptvService {
   }
 
   /// Parses M3U content into structured IptvChannel objects
-  static List<IptvChannel> parseM3u(String body, {String defaultCountry = 'Global'}) {
+  static List<IptvChannel> parseM3u(
+    String body, {
+    String defaultCountry = 'Global',
+    String defaultSource = 'IPTV-Org',
+    Map<String, String>? defaultHeaders,
+  }) {
     final lines = body.split('\n');
     final List<IptvChannel> list = [];
 
@@ -169,6 +262,7 @@ class IptvService {
     String currentCategory = 'General';
     String currentCountry = defaultCountry;
     String currentId = '';
+    Map<String, String>? currentHeaders = defaultHeaders != null ? Map.from(defaultHeaders) : null;
 
     for (var line in lines) {
       line = line.trim();
@@ -186,11 +280,32 @@ class IptvService {
 
         currentCountry = _extractCountry(currentId, line, fallback: defaultCountry);
 
+        // Optional http-user-agent or referer in EXTINF
+        final uaMatch = RegExp(r'http-user-agent="([^"]*)"').firstMatch(line);
+        final refMatch = RegExp(r'http-referrer="([^"]*)"').firstMatch(line);
+        if (uaMatch != null || refMatch != null) {
+          currentHeaders ??= {};
+          if (uaMatch != null) currentHeaders['User-Agent'] = uaMatch.group(1)!;
+          if (refMatch != null) currentHeaders['Referer'] = refMatch.group(1)!;
+        }
+
         final commaIdx = line.indexOf(',');
         if (commaIdx != -1 && commaIdx + 1 < line.length) {
           currentName = line.substring(commaIdx + 1).trim();
         } else {
           currentName = currentId.isNotEmpty ? currentId : 'Live Channel';
+        }
+      } else if (line.startsWith('#EXTVLCOPT:')) {
+        // Parse VLC options for headers e.g. #EXTVLCOPT:http-referrer=https://example.com
+        if (line.contains('http-referrer=')) {
+          final ref = line.split('http-referrer=').last.trim();
+          currentHeaders ??= {};
+          currentHeaders['Referer'] = ref;
+        }
+        if (line.contains('http-user-agent=')) {
+          final ua = line.split('http-user-agent=').last.trim();
+          currentHeaders ??= {};
+          currentHeaders['User-Agent'] = ua;
         }
       } else if (!line.startsWith('#') && line.startsWith('http')) {
         if (currentName != null && currentName.isNotEmpty) {
@@ -201,6 +316,8 @@ class IptvService {
             category: currentCategory,
             country: currentCountry,
             url: line,
+            source: defaultSource,
+            headers: currentHeaders,
           ));
         }
         currentName = null;
@@ -208,6 +325,7 @@ class IptvService {
         currentCategory = 'General';
         currentCountry = defaultCountry;
         currentId = '';
+        currentHeaders = defaultHeaders != null ? Map.from(defaultHeaders) : null;
       }
     }
 
@@ -239,15 +357,17 @@ class IptvService {
     return fallback;
   }
 
-  /// Filters channels in memory by search query, category, and country
+  /// Filters channels in memory by search query, category, country, and source
   List<IptvChannel> filterChannels({
     String? search,
     String? category,
     String? country,
+    String? source,
   }) {
     final query = (search ?? '').toLowerCase().trim();
     final cat = (category ?? 'All').toLowerCase();
     final ctry = (country ?? 'All').toUpperCase();
+    final src = (source ?? 'All').toLowerCase();
 
     return _channels.where((c) {
       if (cat != 'all' && !c.category.toLowerCase().contains(cat)) {
@@ -256,11 +376,15 @@ class IptvService {
       if (ctry != 'ALL' && c.country.toUpperCase() != ctry) {
         return false;
       }
+      if (src != 'all' && !c.source.toLowerCase().contains(src)) {
+        return false;
+      }
       if (query.isNotEmpty) {
         final matchesName = c.name.toLowerCase().contains(query);
         final matchesCategory = c.category.toLowerCase().contains(query);
         final matchesCountry = c.country.toLowerCase().contains(query);
-        if (!matchesName && !matchesCategory && !matchesCountry) {
+        final matchesSource = c.source.toLowerCase().contains(query);
+        if (!matchesName && !matchesCategory && !matchesCountry && !matchesSource) {
           return false;
         }
       }
@@ -268,13 +392,72 @@ class IptvService {
     }).toList();
   }
 
-  /// Finds a channel by its ID
+  /// Finds first channel matching ID
   Future<IptvChannel?> getChannelById(String id) async {
     await loadChannels();
     for (final c in _channels) {
       if (c.id == id) return c;
     }
     return null;
+  }
+
+  /// Finds all available channel feeds/mirrors matching ID or Name (case-insensitive)
+  /// Enables multiple IP feeds or mirrors from different sources for the same channel.
+  Future<List<IptvChannel>> getChannelsByIdOrName(String query) async {
+    await loadChannels();
+    final clean = query.toLowerCase().trim();
+    final List<IptvChannel> matches = [];
+
+    // Exact ID match first
+    for (final c in _channels) {
+      if (c.id.toLowerCase() == clean) matches.add(c);
+    }
+
+    // Name match
+    if (matches.isEmpty) {
+      for (final c in _channels) {
+        if (c.name.toLowerCase() == clean) matches.add(c);
+      }
+    }
+
+    // Partial contains match if still empty
+    if (matches.isEmpty) {
+      for (final c in _channels) {
+        if (c.name.toLowerCase().contains(clean) || c.id.toLowerCase().contains(clean)) {
+          matches.add(c);
+        }
+      }
+    }
+
+    return matches;
+  }
+
+  /// Returns all alternative mirrors/servers for the given channel
+  Future<List<IptvChannel>> getMirrors(IptvChannel channel) async {
+    await loadChannels();
+    final cleanName = channel.name.toLowerCase().trim();
+    return _channels.where((c) => c.name.toLowerCase().trim() == cleanName && c.url != channel.url).toList();
+  }
+
+  /// Adds a custom user M3U URL and reloads channels
+  Future<void> addCustomM3uUrl(String url) async {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return;
+    final cfg = AddonConfig.instance;
+    if (!cfg.customM3uUrls.contains(trimmed)) {
+      cfg.customM3uUrls.add(trimmed);
+      cfg.scheduleSave();
+      await loadChannels(forceRefresh: true);
+    }
+  }
+
+  /// Removes a custom M3U URL and reloads channels
+  Future<void> removeCustomM3uUrl(String url) async {
+    final cfg = AddonConfig.instance;
+    if (cfg.customM3uUrls.remove(url.trim())) {
+      cfg.scheduleSave();
+      await loadChannels(forceRefresh: true);
+    }
   }
 
   /// Built-in high-availability fallback channels (News, Sports, Entertainment)
@@ -286,6 +469,7 @@ class IptvService {
         logo: 'https://i.imgur.com/7bK7QYI.png',
         category: 'News',
         country: 'UK',
+        source: 'IPTV-Org Fallback',
         url: 'https://linear417-gb-dash1-prd-cf.cdn.sky.com/17404/SkyNews_G8_HD.isml/SkyNews_G8_HD.m3u8',
       ),
       IptvChannel(
@@ -294,6 +478,7 @@ class IptvService {
         logo: 'https://i.imgur.com/rN9kZgM.png',
         category: 'News',
         country: 'Global',
+        source: 'IPTV-Org Fallback',
         url: 'https://live-hls-web-aje.getaj.net/AJE/03.m3u8',
       ),
       IptvChannel(
@@ -302,6 +487,7 @@ class IptvService {
         logo: 'https://i.imgur.com/uR4XfVp.png',
         category: 'News',
         country: 'DE',
+        source: 'IPTV-Org Fallback',
         url: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8',
       ),
       IptvChannel(
@@ -310,6 +496,7 @@ class IptvService {
         logo: 'https://i.imgur.com/h5T2Jsl.png',
         category: 'News',
         country: 'FR',
+        source: 'IPTV-Org Fallback',
         url: 'https://static.france24.com/live/F24_EN_LO_HLS/live_tv.m3u8',
       ),
       IptvChannel(
@@ -318,6 +505,7 @@ class IptvService {
         logo: 'https://i.imgur.com/B7sXW8D.png',
         category: 'Sports',
         country: 'Global',
+        source: 'IPTV-Org Fallback',
         url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8',
       ),
       IptvChannel(
@@ -326,6 +514,7 @@ class IptvService {
         logo: 'https://i.imgur.com/9C3iKeq.png',
         category: 'News',
         country: 'IN',
+        source: 'IPTV-Org Fallback',
         url: 'https://ndtv24x7elemadmin.akamaized.net/hls/live/2003678/ndtv24x7/ndtv24x7master.m3u8',
       ),
       IptvChannel(
@@ -334,6 +523,7 @@ class IptvService {
         logo: 'https://i.imgur.com/X2f8V5t.png',
         category: 'Documentary',
         country: 'US',
+        source: 'IPTV-Org Fallback',
         url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8',
       ),
     ];

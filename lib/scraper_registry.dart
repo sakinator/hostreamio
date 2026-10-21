@@ -1,5 +1,5 @@
 // AUTO-GENERATED SCRAPER REGISTRY - DO NOT EDIT MANUALLY
-// Generated at: 2026-10-20T14:50:43.317990
+// Generated at: 2026-10-21T13:00:26.645528
 // Run "dart run tool/generate_registry.dart" or "pipeline/update.ps1" to regenerate.
 
 import 'upstream/services/scraper/stream_scraper.dart';
@@ -7,6 +7,7 @@ import 'upstream/services/scraper/sites/a111477.dart';
 import 'upstream/services/scraper/sites/animepahe.dart';
 import 'upstream/services/scraper/sites/asian_drama_torrent.dart';
 import 'upstream/services/scraper/sites/bcine.dart';
+import 'upstream/services/scraper/sites/bestseries.dart';
 import 'upstream/services/scraper/sites/bilibili.dart';
 import 'upstream/services/scraper/sites/bolly4u.dart';
 import 'upstream/services/scraper/sites/bollyflix.dart';
@@ -34,11 +35,13 @@ import 'upstream/services/scraper/sites/hdobox.dart';
 import 'upstream/services/scraper/sites/hexa.dart';
 import 'upstream/services/scraper/sites/hianime.dart';
 import 'upstream/services/scraper/sites/hindmoviez.dart';
+import 'upstream/services/scraper/sites/kickassanime.dart';
 import 'upstream/services/scraper/sites/kissasian.dart';
 import 'upstream/services/scraper/sites/kisskh.dart';
 import 'upstream/services/scraper/sites/knaben.dart';
 import 'upstream/services/scraper/sites/lmscript.dart';
 import 'upstream/services/scraper/sites/lookmovie.dart';
+import 'upstream/services/scraper/sites/m4uhd.dart';
 import 'upstream/services/scraper/sites/mapple.dart';
 import 'upstream/services/scraper/sites/megasource.dart';
 import 'upstream/services/scraper/sites/meowtv.dart';
@@ -49,6 +52,7 @@ import 'upstream/services/scraper/sites/moviesmod.dart';
 import 'upstream/services/scraper/sites/movy.dart';
 import 'upstream/services/scraper/sites/multiembed.dart';
 import 'upstream/services/scraper/sites/multimovies.dart';
+import 'upstream/services/scraper/sites/myasiantv.dart';
 import 'upstream/services/scraper/sites/nova.dart';
 import 'upstream/services/scraper/sites/nyaa.dart';
 import 'upstream/services/scraper/sites/peestream.dart';
@@ -91,6 +95,7 @@ class ScraperRegistry {
     AnimePaheScraper(),
     AsianDramaTorrentScraper(),
     BcineScraper(),
+    BestSeriesScraper(),
     BilibiliScraper(),
     Bolly4uScraper(),
     BollyflixScraper(),
@@ -118,11 +123,13 @@ class ScraperRegistry {
     HexaScraper(),
     HiAnimeScraper(),
     HindMoviezScraper(),
+    KickAssAnimeScraper(),
     KissAsianScraper(),
     KissKhScraper(),
     KnabenScraper(),
     LMScriptScraper(),
     LookMovieScraper(),
+    M4uHdScraper(),
     MappleScraper(),
     MegaSourceScraper(),
     MeowTvScraper(),
@@ -133,6 +140,7 @@ class ScraperRegistry {
     MovyScraper(),
     MultiEmbedScraper(),
     MultiMoviesScraper(),
+    MyAsianTvScraper(),
     NovaScraper(),
     NyaaScraper(),
     PeeStreamScraper(),

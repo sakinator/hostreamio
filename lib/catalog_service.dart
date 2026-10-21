@@ -6,6 +6,7 @@ import 'config.dart';
 import 'omdb_service.dart';
 import 'torbox_service.dart';
 import 'iptv_service.dart';
+import 'live_sports_service.dart';
 
 class CatalogService {
   static final CatalogService instance = CatalogService._();
@@ -1799,17 +1800,31 @@ class CatalogService {
       final vId = id.replaceFirst('dm:', '');
       streams = await _resolveDailymotionStreams(vId);
     } else if (id.startsWith('iptv:')) {
-      // 5. Free Global Live IPTV Resolver
+      // 5. Free Global Live IPTV Resolver (multi-source, multi-IP mirrors)
       final chId = id.replaceFirst('iptv:', '');
-      final ch = await IptvService.instance.getChannelById(chId);
-      if (ch != null) {
-        streams.add({
-          'name': '📺 ${ch.name}',
-          'title': '⚡ Live HLS Stream • ${ch.category} • ${ch.country}\n🌐 Source: iptv-org Broadcast',
-          'url': ch.url,
-          'behaviorHints': const {'notWebReady': false},
-        });
+      final channels = await IptvService.instance.getChannelsByIdOrName(chId);
+      if (channels.isNotEmpty) {
+        int mirrorNum = 1;
+        for (final ch in channels) {
+          final playUrl = ch.getStreamUrl(localBaseUrl: localBaseUrl);
+          final serverTag = channels.length > 1 ? ' [Server $mirrorNum • ${ch.source}]' : ' [${ch.source}]';
+          streams.add({
+            'name': '📺 ${ch.name}$serverTag',
+            'title': '⚡ Live HLS Stream • ${ch.category} • ${ch.country}\n🌐 Source: ${ch.source} Broadcast\n🔗 Mirror #$mirrorNum',
+            'url': playUrl,
+            'behaviorHints': {
+              'notWebReady': false,
+              if (ch.headers != null && ch.headers!.isNotEmpty)
+                'proxyHeaders': {'request': ch.headers!},
+            },
+          });
+          mirrorNum++;
+        }
       }
+    } else if (id.startsWith('sport:')) {
+      // 6. Live Sports Events & Matches Resolver
+      final eventId = id.replaceFirst('sport:', '');
+      streams = await LiveSportsService.instance.resolveEventStreams(eventId, localBaseUrl: localBaseUrl);
     } else if (id.startsWith('sd:') || id.startsWith('shortdrama:')) {
       // 6. Short & Micro-Drama Stream Resolver
       final baseId = id.contains(':') && !id.startsWith('sd:')

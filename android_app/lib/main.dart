@@ -6215,6 +6215,19 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  _TvFocusableButton(
+                    onPressed: () => _showCustomM3uDialog(),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161B22),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF388BFD).withOpacity(0.4)),
+                      ),
+                      child: const Icon(Icons.playlist_add_rounded, color: Color(0xFF58A6FF), size: 20),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -6448,11 +6461,14 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   }
 
   Widget _buildIptvChannelCard(IptvChannel ch) {
+    final localUrl = 'http://127.0.0.1:${_config.port}';
     final streamData = {
-      'url': ch.url,
+      'url': ch.getStreamUrl(localBaseUrl: localUrl),
       'title': ch.name,
       'cleanTitle': ch.name,
-      'name': '📺 ${ch.category}',
+      'name': '📺 ${ch.category} • ${ch.source}',
+      if (ch.headers != null && ch.headers!.isNotEmpty)
+        'headers': ch.headers,
     };
 
     return Container(
@@ -6531,6 +6547,18 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                           child: Text(
                             _getChannelCountryLabel(ch.country),
                             style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF3FB950)),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8957E5).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF8957E5), width: 0.8),
+                          ),
+                          child: Text(
+                            ch.source,
+                            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFFD2A8FF)),
                           ),
                         ),
                       ],
@@ -6616,6 +6644,155 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           ),
         ],
       ),
+    );
+  }
+  void _showCustomM3uDialog() {
+    final controller = TextEditingController();
+    final focusNode = _createTvTextFocusNode();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final customUrls = _config.customM3uUrls;
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF11141C),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF1F2432), width: 1.5),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.playlist_add_rounded, color: Color(0xFF58A6FF), size: 22),
+                  SizedBox(width: 10),
+                  Text(
+                    'Custom M3U Feeds',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 480,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Add your own custom M3U or M3U8 playlist URLs. Channels will be parsed and merged with your live channel catalog automatically.',
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey, height: 1.3),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: const Color(0xFF08090C),
+                              hintText: 'https://example.com/playlist.m3u',
+                              hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1F2432))),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF1F2432))),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF58A6FF))),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _TvFocusableButton(
+                          onPressed: () async {
+                            final text = controller.text.trim();
+                            if (text.isNotEmpty) {
+                              await IptvService.instance.addCustomM3uUrl(text);
+                              controller.clear();
+                              setDialogState(() {});
+                              _loadIptvChannels(reset: true);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF195FEB),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Active Custom Playlists (${customUrls.length}):',
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    if (customUrls.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text('No custom feeds configured yet.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 180),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: customUrls.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                          itemBuilder: (context, idx) {
+                            final u = customUrls[idx];
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF161B22),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFF30363D)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.link_rounded, size: 16, color: Color(0xFF58A6FF)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      u,
+                                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                                    onPressed: () async {
+                                      await IptvService.instance.removeCustomM3uUrl(u);
+                                      setDialogState(() {});
+                                      _loadIptvChannels(reset: true);
+                                    },
+                                    constraints: const BoxConstraints(),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Close', style: TextStyle(color: Colors.grey)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

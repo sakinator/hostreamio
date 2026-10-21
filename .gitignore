@@ -4,6 +4,8 @@
 pubspec.lock
 data/settings.json
 data/config.json
+data/*_cache.json
+data/iptv_cache.json
 *.zip
 *.exe
 !tool/rcedit.exe

@@ -874,6 +874,10 @@ class ScraperEngine {
     'hdobox': 'api.hdo.app',
     'bilibili': 'bilibili.tv',
     'sportzxlive': 'sportzx.live',
+    'kickassanime': 'kaa.lt',
+    'bestseries': 'bstsrs.in',
+    'm4uhd': 'm4uhd.vip',
+    'myasiantv': 'myasiantv.com.bz',
   };
 
   static String extractDomain(String url) {
@@ -967,6 +971,10 @@ class ScraperEngine {
       'tamilmv': '1TamilMV',
       'asiandrama': 'AsianDrama',
       'coolmovies': 'CoolMovies',
+      'kickassanime': 'KickAssAnime',
+      'bestseries': 'BestSeries',
+      'm4uhd': 'M4uHD',
+      'myasiantv': 'MyAsianTV',
     };
 
     String baseName = siteMap[cleanId] ?? '';
