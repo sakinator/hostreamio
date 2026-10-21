@@ -6461,7 +6461,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   }
 
   Widget _buildIptvChannelCard(IptvChannel ch) {
-    final localUrl = 'http://127.0.0.1:${_config.port}';
+    final localUrl = 'http://127.0.0.1:${AddonConfig.instance.port}';
     final streamData = {
       'url': ch.getStreamUrl(localBaseUrl: localUrl),
       'title': ch.name,
@@ -6655,7 +6655,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final customUrls = _config.customM3uUrls;
+            final customUrls = AddonConfig.instance.customM3uUrls;
 
             return AlertDialog(
               backgroundColor: const Color(0xFF11141C),
