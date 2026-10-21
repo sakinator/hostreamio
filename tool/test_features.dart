@@ -101,6 +101,18 @@ void main() async {
     print('  Scraper "$id": ${exists ? "✔ Registered" : "✖ Missing"} | Domain: $domain');
   }
 
+  // 7. Test Short Drama Metadata Resolution
+  print('\n--- [7/7] Testing Short Drama Metadata Resolution (Fix sd: prefix) ---');
+  final resolvedSd = await MetadataService.resolve(
+    type: 'series',
+    rawId: 'sd:double_life_billionaire',
+  );
+  print('Resolved sd: ID: ${resolvedSd?.id}');
+  print('Resolved sd: Title: "${resolvedSd?.title}"');
+  print('Resolved sd: Poster: ${resolvedSd?.poster}');
+  assert(resolvedSd != null, 'Short drama metadata must resolve');
+  assert(resolvedSd!.title == 'The Double Life of My Billionaire Husband', 'Title must resolve accurately');
+
   print('\n====================================================');
   print('✅ All tests completed successfully!');
   print('====================================================');

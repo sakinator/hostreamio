@@ -136,8 +136,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         final np = _player.platform as NativePlayer;
         try {
           await np.setProperty('volume-max', '200');
-          // 'auto-safe' enables native GPU / ExoPlayer / MediaCodec decoding on Android & DXVA/D3D11 on Windows
-          await np.setProperty('hwdec', _isHardwareAccelerationEnabled ? 'auto-safe' : 'no');
+          // On Android, media_kit renders to Flutter textures; 'mediacodec-copy' ensures rock-solid hardware decoding
+          // without crashing the surface texture, while 'auto-safe' is used on desktop (D3D11/DXVA).
+          if (Platform.isAndroid) {
+            await np.setProperty('hwdec', _isHardwareAccelerationEnabled ? 'mediacodec-copy' : 'no');
+          } else {
+            await np.setProperty('hwdec', _isHardwareAccelerationEnabled ? 'auto-safe' : 'no');
+          }
         } catch (_) {}
       }
 
@@ -394,7 +399,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (_player.platform is NativePlayer) {
       final np = _player.platform as NativePlayer;
       try {
-        await np.setProperty('hwdec', next ? 'auto-safe' : 'no');
+        if (Platform.isAndroid) {
+          await np.setProperty('hwdec', next ? 'mediacodec-copy' : 'no');
+        } else {
+          await np.setProperty('hwdec', next ? 'auto-safe' : 'no');
+        }
       } catch (_) {}
     }
 

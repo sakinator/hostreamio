@@ -344,9 +344,9 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
 
         print('[Server] Received stream request: type=$type, id=$idWithExt');
 
-        // Check custom video streams (YouTube, Vimeo, Archive.org, Dailymotion, IPTV)
+        // Check custom video streams (YouTube, Vimeo, Archive.org, Dailymotion, IPTV, Short Dramas)
         // Also scrape all other hoster/torrent sources for this title & year, sorting own links FIRST!
-        if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:')) {
+        if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:') || idWithExt.startsWith('sd:') || idWithExt.startsWith('shortdrama:')) {
           final customStreamsFuture = CatalogService.instance.resolveCustomStreams(
             type, 
             idWithExt,

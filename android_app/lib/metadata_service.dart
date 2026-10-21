@@ -88,6 +88,34 @@ class MetadataService {
       return _cache[cacheKey];
     }
 
+    if (rawId.startsWith('sd:') || rawId.startsWith('shortdrama:')) {
+      final baseId = rawId.contains(':') && !rawId.startsWith('sd:')
+          ? rawId.split(':').take(2).join(':')
+          : (rawId.split(':').length > 2 ? rawId.split(':').take(2).join(':') : rawId);
+      Map<String, dynamic>? item = CatalogService.dynamicShortDramas[baseId] ?? CatalogService.dynamicShortDramas[rawId];
+      if (item == null) {
+        try {
+          item = CatalogService.shortDramaCuratedList.firstWhere(
+            (it) => it['id'] == baseId || rawId.contains(it['id']!.toString().replaceFirst('sd:', '')),
+          );
+        } catch (_) {}
+      }
+      final sTitle = item?['name']?.toString() ?? baseId.replaceFirst(RegExp(r'^sd:|^shortdrama:'), '').replaceAll('_', ' ');
+      final sDesc = item?['description']?.toString() ?? 'Vertical micro-drama & short series';
+      final sPoster = item?['poster']?.toString();
+      final result = MediaMetadata(
+        id: rawId,
+        type: type,
+        title: sTitle,
+        year: 2024,
+        description: sDesc,
+        poster: sPoster,
+        genres: (item?['genres'] as List?)?.map((g) => g.toString()).toList() ?? ['Short Drama', 'Drama'],
+      );
+      _cache[cacheKey] = result;
+      return result;
+    }
+
     String baseId = rawId;
     int? season;
     int? episode;
@@ -616,8 +644,9 @@ class MetadataService {
           final uri = Uri.parse('$_tmdbDirect/tv/$tmdbId?api_key=$_apiKey');
           final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
           if (res.statusCode == 200) {
-            tmdbData = jsonDecode(res.body);
-            imdbId = tmdbData!['external_ids']?['imdb_id'] ?? tmdbData!['imdb_id'];
+            final data = jsonDecode(res.body) as Map<String, dynamic>?;
+            tmdbData = data;
+            imdbId = data?['external_ids']?['imdb_id'] ?? data?['imdb_id'];
           }
         } catch (_) {}
       }

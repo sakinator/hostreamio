@@ -1810,6 +1810,27 @@ class CatalogService {
           'behaviorHints': const {'notWebReady': false},
         });
       }
+    } else if (id.startsWith('sd:') || id.startsWith('shortdrama:')) {
+      // 6. Short & Micro-Drama Stream Resolver
+      final baseId = id.contains(':') && !id.startsWith('sd:')
+          ? id.split(':').take(2).join(':')
+          : (id.split(':').length > 2 ? id.split(':').take(2).join(':') : id);
+      Map<String, dynamic>? item = dynamicShortDramas[baseId] ?? dynamicShortDramas[id];
+      if (item == null) {
+        try {
+          item = shortDramaCuratedList.firstWhere(
+            (it) => it['id'] == baseId || id.contains(it['id']!.toString().replaceFirst('sd:', '')),
+          );
+        } catch (_) {}
+      }
+      if (item != null && item['url'] != null && item['url'].toString().isNotEmpty) {
+        streams.add({
+          'name': '⚡ Short Drama Direct',
+          'title': '▶ Direct Stream • ${item['name'] ?? 'Episode'}\n🌐 Source: Micro-Drama Aggregator',
+          'url': item['url'],
+          'behaviorHints': const {'notWebReady': false},
+        });
+      }
     }
 
     return await _applyTorboxOptions(streams, localBaseUrl);

@@ -437,9 +437,9 @@ class ServerService {
 
           _addLog('Stream request: $type/$idWithExt');
 
-          // Check custom video streams (YouTube, Vimeo, Archive.org, Dailymotion)
+          // Check custom video streams (YouTube, Vimeo, Archive.org, Dailymotion, IPTV, Short Dramas)
           // Also scrape all other hoster/torrent sources for this title & year, sorting own links FIRST!
-          if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:')) {
+          if (idWithExt.startsWith('yt:') || idWithExt.startsWith('vimeo:') || idWithExt.startsWith('archive:') || idWithExt.startsWith('dm:') || idWithExt.startsWith('iptv:') || idWithExt.startsWith('sd:') || idWithExt.startsWith('shortdrama:')) {
             final customStreamsFuture = CatalogService.instance.resolveCustomStreams(
               type, 
               idWithExt,

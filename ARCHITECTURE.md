@@ -529,12 +529,16 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 
 ---
 
-## 13. Modular Component-Driven UI Architecture (`android_app/lib/ui/`)
-- **Philosophy:** Decouples the monolithic `main.dart` into specialized, isolated, and TV D-Pad remote compatible UI components.
-- **Widgets:**
+## 13. Modular Component-Driven UI Architecture & Android TV Remote Navigation (`android_app/lib/ui/`)
+- **Philosophy:** Decouples the monolithic `main.dart` into specialized, isolated, and TV D-Pad remote compatible UI components with bidirectional focus traversal.
+- **Widgets & Traversal Systems:**
   - **`TvFocusableButton` (`android_app/lib/ui/tv_focusable_button.dart`):** Reusable remote focus widget with D-Pad hardware keybindings (`Select`, `Enter`, `Space`, `GameButtonA`), animated scale transitions (1.04x), high-contrast glow (`#38BDF8`), and automatic view centering (`Scrollable.ensureVisible`).
-  - **`CatalogBrowserWidget` (`android_app/lib/ui/catalog_browser_widget.dart`):** Encapsulates catalogue category tabs, genre pills, sort dropdowns (*Trending, New Digital Releases, Popular, Top Rated, Airing Today*), and responsive media poster cards with playback progress indicators.
+  - **`CatalogBrowserWidget` (`android_app/lib/ui/catalog_browser_widget.dart`):** Encapsulates catalogue category tabs, genre pills (wrapped in `TvFocusableButton`), sort dropdowns (*Trending, New Digital Releases, Popular, Top Rated, Airing Today*), and responsive media poster cards with playback progress indicators. Wrapped in `FocusTraversalGroup` with `ReadingOrderTraversalPolicy` for seamless remote vertical navigation.
   - **`SeriesBrowserWidget` (`android_app/lib/ui/series_browser_widget.dart`):** Encapsulates TV season selector bar, responsive episode lists, still thumbnails, multi-line plot synopses, and 1-tap stream triggers.
+  - **Universal Textbox Arrow-Key Escape (`_createTvTextFocusNode`):** Eliminates Android TV text input traps where `EditableText` consumes arrow keys by default. Automatically escapes focus down/up/left/right to neighboring widgets when at text boundaries or in numeric inputs (`S`/`E`).
+  - **Root `PopScope` Exit Guard & Detail View Dismiss:** Prevents accidental app terminations by intercepting Android Back button presses: dismisses active media detail views first, unfocuses keyboards, and requires a double-tap within 2.0 seconds to cleanly exit the app.
+  - **Android Video Player & Scraper Pipeline Hardening:** Configures libmpv with `mediacodec-copy` on Android textures (preventing `auto-safe` surface locks), extends scraping client timeout to 50 seconds, and accurately maps `sd:` / `shortdrama:` prefix IDs directly to title metadata without scraper timeout dropouts.
+  - **Permanent Release Keystore (`release.jks`):** Pinned persistent release keystore in `android_app/android/app/release.jks` ensuring every CI build produces APKs signed with the exact same certificate, enabling clean in-place app updates on Android without "App not installed" errors or uninstall requirements.
 
 ---
 

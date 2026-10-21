@@ -44,10 +44,13 @@ A high-performance local Stremio & Nuvio-compatible addon server featuring **70 
   - **200% VLC Super Gain:** Amplifies audio up to 200% with floating volume HUD pill and quick-jump preset pills (`100%`, `125%`, `150%`, `200%`).
   - **Dialogue Normalizer:** Real-time FFmpeg `dynaudnorm` filter toggle (`lavfi=[dynaudnorm=f=75:g=15:p=0.95:m=10]`) boosts quiet whispers while softening deafening action explosions.
   - **Smart IPTV / VOD Adaptation:** Automatically detects live IPTV `.m3u8` streams, removes VOD timeline scrubbing, displays live latency status, and auto-reconnects on network drops.
-- **Modular Component-Driven UI Architecture (`android_app/lib/ui/`):**
+- **Modular Component-Driven UI & TV D-Pad Remote Navigation (`android_app/lib/ui/`):**
   - **`TvFocusableButton`:** TV Remote / D-Pad-optimized focusable widget with animated scale transitions, high-contrast glow (`#38BDF8`), automatic scroll-into-view (`Scrollable.ensureVisible`), and hardware remote button activations (`Select`, `Enter`, `GameButtonA`).
-  - **`CatalogBrowserWidget`:** Decoupled, reusable catalogue browser featuring dynamic genre filter chips, sort dropdowns (*Trending, New Digital Releases, Popular, Top Rated*), and poster cards with progress indicators.
+  - **`CatalogBrowserWidget`:** Decoupled, reusable catalogue browser featuring focusable dynamic genre filter chips, sort dropdowns (*Trending, New Digital Releases, Popular, Top Rated*), and poster cards with glow borders and focus traversal.
   - **`SeriesBrowserWidget`:** Modular TV series season & episode navigator supporting horizontal season tabs, episode still thumbnails, multi-line plot synopses, and direct stream scrapers.
+  - **Universal Textbox Arrow-Key Escape:** Directional caret escape handlers preventing remote arrow key trapping in input fields.
+  - **PopScope Double-Back Exit Protection:** Prevents accidental exits, dismisses open media detail views first, and requires double back-press to quit.
+  - **Permanent Keystore Signature:** Pinned `release.jks` keystore ensuring seamless in-place APK updates on Android without needing to uninstall previous versions.
 - **Dual Windows Binaries (Desktop GUI + Headless Server Daemon):**
   - **`hostreamio.exe`:** Full native Flutter desktop application with embedded brand icon, 5-tab UI, video player, and theater.
   - **`hostreamio-cli.exe`:** Standalone headless HTTP server daemon (`dart compile exe bin/server.dart`) listening on port 7002.

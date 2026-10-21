@@ -88,9 +88,48 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
   // Nuvio-style Media Detail View state
   bool _isInDetailView = false;
+  DateTime? _lastBackPressTime;
+
+  /// Universal TV D-Pad directional escape handler for TextFields / FormFields.
+  /// Prevents arrow keys from getting trapped inside EditableText on Android TV.
+  FocusNode _createTvTextFocusNode({
+    TextEditingController? controller,
+    bool exitOnAnyHorizontal = false,
+  }) {
+    final node = FocusNode();
+    node.onKeyEvent = (FocusNode n, KeyEvent event) {
+      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+        return KeyEventResult.ignored;
+      }
+      final key = event.logicalKey;
+      if (key == LogicalKeyboardKey.arrowDown) {
+        n.focusInDirection(TraversalDirection.down);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowUp) {
+        n.focusInDirection(TraversalDirection.up);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowLeft) {
+        if (exitOnAnyHorizontal || controller == null || controller.text.isEmpty || controller.selection.baseOffset <= 0) {
+          n.focusInDirection(TraversalDirection.left);
+          return KeyEventResult.handled;
+        }
+      }
+      if (key == LogicalKeyboardKey.arrowRight) {
+        if (exitOnAnyHorizontal || controller == null || controller.text.isEmpty || controller.selection.baseOffset >= controller.text.length) {
+          n.focusInDirection(TraversalDirection.right);
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+    return node;
+  }
 
   // Live IPTV State (iptv-org integration)
   final TextEditingController _iptvSearchController = TextEditingController();
+  late final FocusNode _iptvSearchFocus = _createTvTextFocusNode(controller: _iptvSearchController);
   String _selectedIptvCategory = 'All';
   String _selectedIptvCountry = 'All';
   List<IptvChannel> _iptvChannels = [];
@@ -106,7 +145,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   final FocusNode _refreshIpFocus = FocusNode();
 
   final TextEditingController _torboxKeyController = TextEditingController();
-  final FocusNode _torboxInputFocus = FocusNode();
+  late final FocusNode _torboxInputFocus = _createTvTextFocusNode(controller: _torboxKeyController);
   final FocusNode _torboxSaveFocus = FocusNode();
   final FocusNode _torboxKeyLinkFocus = FocusNode();
   bool _obscureTorboxKey = true;
@@ -137,13 +176,20 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   bool _enableHardwareAcceleration = true;
   String _defaultPlayerEngine = 'embedded';
   final TextEditingController _proxyResolverController = TextEditingController();
+  late final FocusNode _proxyResolverFocus = _createTvTextFocusNode(controller: _proxyResolverController);
+
+  final Map<String, FocusNode> _apiFocusNodes = {};
+  FocusNode _getApiFocusNode(String key, TextEditingController ctrl) =>
+      _apiFocusNodes.putIfAbsent(key, () => _createTvTextFocusNode(controller: ctrl));
 
   // Streaming View State
   String _selectedMediaType = 'movie'; // 'movie' or 'series'
   final TextEditingController _searchQueryController = TextEditingController(text: 'tt1375666');
   final TextEditingController _seasonController = TextEditingController(text: '1');
   final TextEditingController _episodeController = TextEditingController(text: '1');
-  final FocusNode _searchInputFocus = FocusNode();
+  late final FocusNode _searchInputFocus = _createTvTextFocusNode(controller: _searchQueryController);
+  late final FocusNode _seasonFocus = _createTvTextFocusNode(controller: _seasonController, exitOnAnyHorizontal: true);
+  late final FocusNode _episodeFocus = _createTvTextFocusNode(controller: _episodeController, exitOnAnyHorizontal: true);
   final FocusNode _searchButtonFocus = FocusNode();
 
   bool _isSearching = false;
@@ -459,16 +505,54 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     final server = ServerService.instance;
     final cfg = AddonConfig.instance;
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f11) {
-          WindowService.instance.toggleFullscreen();
-          return KeyEventResult.handled;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+
+        // 1. If currently in media detail view, Back exits detail view first
+        if (_isInDetailView) {
+          setState(() {
+            _isInDetailView = false;
+            _selectedMediaMeta = null;
+          });
+          return;
         }
-        return KeyEventResult.ignored;
+
+        // 2. If a text field currently has focus, unfocus it
+        final primaryFocus = FocusManager.instance.primaryFocus;
+        if (primaryFocus != null && primaryFocus.hasFocus && primaryFocus.context?.widget is EditableText) {
+          primaryFocus.unfocus();
+          return;
+        }
+
+        // 3. Double back press to exit within 2 seconds
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press BACK again to exit Hostreamio'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Color(0xFF1E293B),
+            ),
+          );
+          return;
+        }
+
+        // Second press within 2 seconds -> Exit app cleanly
+        SystemNavigator.pop();
       },
-      child: Scaffold(
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f11) {
+            WindowService.instance.toggleFullscreen();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Scaffold(
       body: SafeArea(
         child: ValueListenableBuilder<bool>(
           valueListenable: server.isRunning,
@@ -605,6 +689,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           },
         ),
       ),
+    ),
     ),
     );
   }
@@ -1171,6 +1256,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   // ════════════════════════════════════════════════════════════
 
   final TextEditingController _cachingUploadInputController = TextEditingController();
+  late final FocusNode _cachingUploadFocus = _createTvTextFocusNode(controller: _cachingUploadInputController);
 
   void _startCacheQueuePolling() {
     _cacheQueueTimer?.cancel();
@@ -1318,6 +1404,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       ),
                       child: TextField(
                         controller: _cachingUploadInputController,
+                        focusNode: _cachingUploadFocus,
                         style: const TextStyle(fontSize: 13, color: Colors.white),
                         decoration: const InputDecoration(
                           hintText: 'Paste hoster or magnet link to cache (HubCloud, PixelDrain, GoFile)...',
@@ -2250,6 +2337,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   ),
                   child: TextFormField(
                     controller: controller,
+                    focusNode: _getApiFocusNode(service, controller),
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.white),
                     decoration: InputDecoration(
                       hintText: hintText,
@@ -2874,6 +2962,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _proxyResolverController,
+                    focusNode: _proxyResolverFocus,
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.white),
                     decoration: const InputDecoration(
                       hintText: 'FlareSolverr URL (e.g. http://localhost:8191/v1)',
@@ -3475,6 +3564,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       width: 50,
                       child: TextField(
                         controller: _seasonController,
+                        focusNode: _seasonFocus,
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -3493,6 +3583,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                       width: 50,
                       child: TextField(
                         controller: _episodeController,
+                        focusNode: _episodeFocus,
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -3546,16 +3637,12 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               itemBuilder: (context, index) {
                 final m = _catalogSuggestions[index];
                 final poster = m['poster']?.toString() ?? 'https://images.metahub.space/poster/medium/${m['id']}/img';
-                return GestureDetector(
-                  onTap: () => _onSelectSuggestion(m),
+                return _TvFocusableButton(
+                  borderRadius: BorderRadius.circular(10),
+                  onPressed: () => _onSelectSuggestion(m),
                   child: Container(
                     width: 220,
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF11141C),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF1F2432)),
-                    ),
                     child: Row(
                       children: [
                         ClipRRect(
@@ -5172,7 +5259,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     try {
       final port = AddonConfig.instance.port;
       final url = Uri.parse('http://127.0.0.1:$port/stream/$type/${Uri.encodeComponent(id)}.json');
-      final res = await http.get(url).timeout(const Duration(seconds: 25));
+      final res = await http.get(url).timeout(const Duration(seconds: 50));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final rawList = (data is Map && data['streams'] is List) ? data['streams'] as List : [];
@@ -6090,6 +6177,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   Expanded(
                     child: TextField(
                       controller: _iptvSearchController,
+                      focusNode: _iptvSearchFocus,
                       style: const TextStyle(color: Colors.white, fontSize: 14),
                       decoration: InputDecoration(
                         filled: true,
