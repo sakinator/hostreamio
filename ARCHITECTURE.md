@@ -600,4 +600,22 @@ Rather than stacking episodes and streams vertically on the catalog browsing pag
 | **`Cannot set status code on closed response`** | Missing `return;` after `request.response.close()`. | Always add `return;` immediately after `await request.response.close()` in route handlers. |
 
 ---
+
+## 18. Multi-Source IPTV Mirror & FAST Channel Architecture
+- **URL-Based Deduplication (Mirror Retention):**
+  - In `lib/iptv_service.dart`, channels are indexed strictly by unique stream URL rather than channel name or `tvg-id`.
+  - If identical channels (e.g., ESPN, Sky Sports, Star Sports) exist across different IP addresses, CDNs, or providers, all feeds are preserved as alternative mirrors (`[Server 1]`, `[Server 2]`).
+- **FAST Channel Ingestion (Pluto TV & Samsung TV Plus):**
+  - Automated ingestion of curated 1080p, legal, ad-free FAST feeds with category tagging (Movies, News, Sports, Comedy, Tech).
+- **Custom User M3U Playlists:**
+  - Configurable via `customM3uUrls` in `AddonConfig`. Supports both remote HTTPS feeds and local file paths.
+- **Reverse Proxy Header Injection:**
+  - Streams with referer protection (e.g. DaddyLive, Streamed) are automatically routed through `/proxy?url=...&headers=...`. Both parent playlists and child `.ts`/`.m4s` chunks inherit required headers.
+- **`LiveSportsService` (`lib/live_sports_service.dart`):**
+  - Aggregates live and upcoming fixtures across Soccer, Cricket, Basketball, Motorsports, Fighting/MMA, and Tennis.
+  - Resolves playable streams for `sport:<id>` with live countdown status (`🔴 LIVE NOW`, `In 15m`).
+- **Comprehensive Regression Suite (18 Phases):**
+  - Validated via `dart run tool/test_features.dart` covering 85 PlayTorrio HTTP scrapers, IPTV multi-mirror ingestion, and 100% byte parity between `lib/` and `android_app/lib/`.
+
+---
 *Maintained under 100% Vibe Coding standards. Always preserve backward compatibility for Nuvio & Stremio manifests.*
