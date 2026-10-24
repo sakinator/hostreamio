@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 class TvFocusableButton extends StatefulWidget {
   final FocusNode? focusNode;
   final VoidCallback? onPressed;
+  final ValueChanged<bool>? onFocusChange;
   final Widget child;
   final bool isPrimary;
   final Color? primaryColor;
@@ -13,11 +14,13 @@ class TvFocusableButton extends StatefulWidget {
   final bool autofocus;
   final EdgeInsetsGeometry? padding;
   final BorderRadius? borderRadius;
+  final double scaleFactor;
 
   const TvFocusableButton({
     super.key,
     this.focusNode,
     this.onPressed,
+    this.onFocusChange,
     required this.child,
     this.isPrimary = false,
     this.primaryColor,
@@ -25,6 +28,7 @@ class TvFocusableButton extends StatefulWidget {
     this.autofocus = false,
     this.padding,
     this.borderRadius,
+    this.scaleFactor = 1.04,
   });
 
   @override
@@ -48,6 +52,7 @@ class _TvFocusableButtonState extends State<TvFocusableButton> {
       autofocus: widget.autofocus,
       onFocusChange: (focused) {
         setState(() => _isFocused = focused);
+        widget.onFocusChange?.call(focused);
         if (focused) {
           Scrollable.ensureVisible(
             context,
@@ -76,7 +81,9 @@ class _TvFocusableButtonState extends State<TvFocusableButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
-          transform: hasHighlight ? Matrix4.diagonal3Values(1.04, 1.04, 1.0) : Matrix4.identity(),
+          transform: hasHighlight && widget.scaleFactor != 1.0
+              ? Matrix4.diagonal3Values(widget.scaleFactor, widget.scaleFactor, 1.0)
+              : Matrix4.identity(),
           padding: widget.padding,
           decoration: BoxDecoration(
             color: bg,

@@ -4639,138 +4639,171 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             }
 
             final metaParts = metaItems.join(' • ');
+            final cardBorderColor = isCached
+                ? const Color(0xFF238636)
+                : (isCacheTag ? const Color(0xFF195FEB) : const Color(0xFF1F2432));
 
-            return _TvFocusableButton(
-              // D-pad Enter/Select plays the stream directly
-              onPressed: () => _playStream(s),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF11141C),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isCached
-                        ? const Color(0xFF238636)
-                        : (isCacheTag ? const Color(0xFF195FEB) : const Color(0xFF1F2432)),
-                    width: 1.2,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. Scene Filename Header
-                    Text(
-                      sceneFilename,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white, height: 1.25),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 7),
-
-                    // 2. Built-in Fusion Badges!
-                    _buildFusionBadgesRow(s, sceneFilename),
-                    const SizedBox(height: 7),
-
-                    // 3. Source & Host metadata
-                    if (metaParts.isNotEmpty)
-                      Text(
-                        metaParts,
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade400, height: 1.2),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    const SizedBox(height: 10),
-
-                    // 4. Action buttons (touch; D-pad Enter on card = Play)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        if (isCached) ...[
-                          // ⚡ Cached Stream: TorBox button (primary) + Play Original button
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF238636),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF11141C),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: cardBorderColor, width: 1.2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. Scene Filename & Metadata Header (touch/pointer friendly direct play)
+                  InkWell(
+                    onTap: () {
+                      final playObj = Map<String, dynamic>.from(s);
+                      if (isCached && torboxPlayUrl.isNotEmpty) {
+                        playObj['finalUrl'] = torboxPlayUrl;
+                      }
+                      _playStream(playObj);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sceneFilename,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white, height: 1.25),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 7),
+                          _buildFusionBadgesRow(s, sceneFilename),
+                          if (metaParts.isNotEmpty) ...[
+                            const SizedBox(height: 7),
+                            Text(
+                              metaParts,
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade400, height: 1.2),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            icon: const Icon(Icons.bolt_rounded, size: 16, color: Colors.white),
-                            label: const Text('Play with TorBox', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // 2. Action buttons (fully D-pad remote navigable with TV focus glow & auto-scroll)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (isCached) ...[
+                        // ⚡ Cached Stream: TorBox button (primary) + Play Original button
+                        _TvFocusableButton(
+                          isPrimary: true,
+                          primaryColor: const Color(0xFF238636),
+                          borderRadius: BorderRadius.circular(8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          onPressed: () {
+                            final playObj = Map<String, dynamic>.from(s);
+                            if (torboxPlayUrl.isNotEmpty) playObj['finalUrl'] = torboxPlayUrl;
+                            _playStream(playObj);
+                          },
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bolt_rounded, size: 16, color: Colors.white),
+                              SizedBox(width: 6),
+                              Text('Play with TorBox', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                        if (hasDirectLink)
+                          _TvFocusableButton(
+                            focusColor: const Color(0xFF388BFD),
+                            borderRadius: BorderRadius.circular(8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             onPressed: () {
                               final playObj = Map<String, dynamic>.from(s);
-                              if (torboxPlayUrl.isNotEmpty) playObj['finalUrl'] = torboxPlayUrl;
+                              playObj['finalUrl'] = directPlayUrl;
                               _playStream(playObj);
                             },
-                          ),
-                          if (hasDirectLink)
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                side: const BorderSide(color: Color(0xFF388BFD)),
-                                backgroundColor: const Color(0xFF161B22),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              icon: const Icon(Icons.public_rounded, size: 15, color: Color(0xFF58A6FF)),
-                              label: const Text('Play Original', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
-                              onPressed: () {
-                                final playObj = Map<String, dynamic>.from(s);
-                                playObj['finalUrl'] = directPlayUrl;
-                                _playStream(playObj);
-                              },
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.public_rounded, size: 15, color: Color(0xFF58A6FF)),
+                                SizedBox(width: 6),
+                                Text('Play Original', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
+                              ],
                             ),
-                        ] else ...[
-                          // Non-Cached Stream: Play Original (primary) + Cache to TorBox button
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF195FEB),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
-                            label: const Text('Play Original', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                            onPressed: () => _playStream(s),
                           ),
-                          if (isCachable)
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF238636),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              icon: const Icon(Icons.cloud_upload_rounded, size: 14, color: Colors.white),
-                              label: const Text(
-                                'Cache to TorBox',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                              onPressed: () => _startTorboxCache(underlying),
-                            ),
-                        ],
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            side: const BorderSide(color: Color(0xFF388BFD)),
-                            backgroundColor: const Color(0xFF161B22),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ] else ...[
+                        // Non-Cached Stream: Play Original (primary) + Cache to TorBox button
+                        _TvFocusableButton(
+                          isPrimary: true,
+                          primaryColor: const Color(0xFF195FEB),
+                          borderRadius: BorderRadius.circular(8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          onPressed: () => _playStream(s),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                              SizedBox(width: 6),
+                              Text('Play Original', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                            ],
                           ),
-                          icon: const Icon(Icons.playlist_play_rounded, size: 16, color: Color(0xFF58A6FF)),
-                          label: const Text('Play With...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
-                          onPressed: () => _showPlayWithDialog(s),
                         ),
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
+                        if (isCachable)
+                          _TvFocusableButton(
+                            isPrimary: true,
+                            primaryColor: const Color(0xFF238636),
+                            borderRadius: BorderRadius.circular(8),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                            side: const BorderSide(color: Color(0xFF30363D)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            onPressed: () => _startTorboxCache(underlying),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.cloud_upload_rounded, size: 14, color: Colors.white),
+                                SizedBox(width: 6),
+                                Text('Cache to TorBox', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                              ],
+                            ),
                           ),
-                          icon: const Icon(Icons.copy_rounded, size: 14, color: Colors.grey),
-                          label: const Text('Copy', style: TextStyle(fontSize: 12, color: Colors.white)),
-                          onPressed: () => _copyToClipboard(url, 'Stream URL'),
-                        ),
                       ],
-                    ),
-                  ],
-                ),
+                      // Play With... Dialog button
+                      _TvFocusableButton(
+                        focusColor: const Color(0xFF388BFD),
+                        borderRadius: BorderRadius.circular(8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        onPressed: () => _showPlayWithDialog(s),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.playlist_play_rounded, size: 16, color: Color(0xFF58A6FF)),
+                            SizedBox(width: 6),
+                            Text('Play With...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
+                          ],
+                        ),
+                      ),
+                      // Copy Stream URL button
+                      _TvFocusableButton(
+                        focusColor: const Color(0xFF8B949E),
+                        borderRadius: BorderRadius.circular(8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        onPressed: () => _copyToClipboard(url, 'Stream URL'),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.copy_rounded, size: 14, color: Colors.grey),
+                            SizedBox(width: 6),
+                            Text('Copy', style: TextStyle(fontSize: 12, color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             );
           },
@@ -5156,24 +5189,20 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
   Widget _buildStreamFilterChip(String filterKey, String label) {
     final isActive = (_activeStreamFilter == filterKey);
-    return GestureDetector(
-      onTap: () {
+    return _TvFocusableButton(
+      isPrimary: isActive,
+      primaryColor: const Color(0xFF195FEB),
+      borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      onPressed: () {
         setState(() => _activeStreamFilter = filterKey);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF195FEB) : const Color(0xFF161B22),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isActive ? const Color(0xFF195FEB) : const Color(0xFF30363D)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: isActive ? Colors.white : Colors.grey.shade400,
-          ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: isActive ? Colors.white : Colors.grey.shade400,
         ),
       ),
     );
@@ -5979,6 +6008,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 
                       return ListTile(
                         autofocus: (idx == 0),
+                        focusColor: const Color(0xFF195FEB).withOpacity(0.35),
+                        hoverColor: const Color(0xFF195FEB).withOpacity(0.2),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                         leading: Container(
                           width: 36,
@@ -6361,7 +6392,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               const Text('Category:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
               const SizedBox(height: 6),
               SizedBox(
-                height: 32,
+                height: 36,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: categories.length + 1, // +1 for Favourites chip
@@ -6369,68 +6400,59 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   itemBuilder: (context, index) {
                     // First chip is always Favourites
                     if (index == 0) {
-                      return GestureDetector(
-                        onTap: () {
+                      return _TvFocusableButton(
+                        borderRadius: BorderRadius.circular(16),
+                        isPrimary: _showOnlyFavourites,
+                        primaryColor: const Color(0xFFE3B341),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        onPressed: () {
                           setState(() {
                             _showOnlyFavourites = !_showOnlyFavourites;
                             if (_showOnlyFavourites) _selectedIptvCategory = 'All';
                           });
                           _onFilterIptv();
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _showOnlyFavourites ? const Color(0xFFE3B341) : const Color(0xFF090D13),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: _showOnlyFavourites ? const Color(0xFFE3B341) : const Color(0xFF1F2432)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _showOnlyFavourites ? Icons.star_rounded : Icons.star_border_rounded,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _showOnlyFavourites ? Icons.star_rounded : Icons.star_border_rounded,
+                              color: _showOnlyFavourites ? Colors.white : Colors.grey.shade400,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Favourites (${_iptvFavourites.length})',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: _showOnlyFavourites ? Colors.white : Colors.grey.shade400,
-                                size: 13,
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Favourites (${_iptvFavourites.length})',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: _showOnlyFavourites ? Colors.white : Colors.grey.shade400,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       );
                     }
                     final cat = categories[index - 1];
                     final isActive = (!_showOnlyFavourites && _selectedIptvCategory == cat);
-                    return GestureDetector(
-                      onTap: () {
+                    return _TvFocusableButton(
+                      borderRadius: BorderRadius.circular(16),
+                      isPrimary: isActive,
+                      primaryColor: const Color(0xFF195FEB),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      onPressed: () {
                         setState(() {
                           _selectedIptvCategory = cat;
                           _showOnlyFavourites = false;
                         });
                         _onFilterIptv();
                       },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isActive ? const Color(0xFF195FEB) : const Color(0xFF090D13),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: isActive ? const Color(0xFF195FEB) : const Color(0xFF1F2432)),
-                        ),
-                        child: Text(
-                          _iptvCategoryLabels[cat] ?? cat,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isActive ? Colors.white : Colors.grey.shade400,
-                          ),
+                      child: Text(
+                        _iptvCategoryLabels[cat] ?? cat,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : Colors.grey.shade400,
                         ),
                       ),
                     );
@@ -6443,7 +6465,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
               const Text('Country / Region:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
               const SizedBox(height: 6),
               SizedBox(
-                height: 32,
+                height: 36,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: countries.length,
@@ -6451,25 +6473,21 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   itemBuilder: (context, index) {
                     final ctry = countries[index];
                     final isActive = (_selectedIptvCountry == ctry);
-                    return GestureDetector(
-                      onTap: () {
+                    return _TvFocusableButton(
+                      borderRadius: BorderRadius.circular(16),
+                      isPrimary: isActive,
+                      primaryColor: const Color(0xFF238636),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      onPressed: () {
                         setState(() => _selectedIptvCountry = ctry);
                         _onFilterIptv();
                       },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isActive ? const Color(0xFF238636) : const Color(0xFF090D13),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: isActive ? const Color(0xFF238636) : const Color(0xFF1F2432)),
-                        ),
-                        child: Text(
-                          _iptvCountryLabels[ctry] ?? ctry,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: isActive ? Colors.white : Colors.grey.shade400,
-                          ),
+                      child: Text(
+                        _iptvCountryLabels[ctry] ?? ctry,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : Colors.grey.shade400,
                         ),
                       ),
                     );
@@ -6542,7 +6560,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                   crossAxisCount: cols,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  childAspectRatio: cols == 1 ? 2.5 : 2.35,
+                  mainAxisExtent: 156.0,
                 ),
                 itemCount: displayedChannels.length,
                 itemBuilder: (context, index) {
@@ -6595,9 +6613,10 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       if (ch.headers != null && ch.headers!.isNotEmpty)
         'headers': ch.headers,
     };
+    final isFav = _iptvFavourites.contains(ch.id);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF11141C),
         borderRadius: BorderRadius.circular(12),
@@ -6607,162 +6626,148 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Large Prominent 72x72 Logo container
-              Container(
-                width: 72,
-                height: 72,
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF161B22),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF30363D)),
+          // Channel Info Top Row (Clickable to play)
+          InkWell(
+            onTap: () => _playStream(streamData, isLive: true),
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Prominent Logo container
+                Container(
+                  width: 58,
+                  height: 58,
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161B22),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF30363D)),
+                  ),
+                  child: ch.logo.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.network(
+                            ch.logo,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.live_tv_rounded, color: Colors.grey, size: 28),
+                          ),
+                        )
+                      : const Icon(Icons.live_tv_rounded, color: Colors.grey, size: 28),
                 ),
-                child: ch.logo.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.network(
-                          ch.logo,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.live_tv_rounded, color: Colors.grey, size: 32),
-                        ),
-                      )
-                    : const Icon(Icons.live_tv_rounded, color: Colors.grey, size: 32),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 10),
 
-              // Name, Badges & Live Status
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      ch.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Colors.white, height: 1.2),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 5,
-                      runSpacing: 4,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF195FEB).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF195FEB), width: 0.8),
+                // Name, Badges & Live Status
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        ch.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white, height: 1.2),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF195FEB).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFF195FEB), width: 0.8),
+                              ),
+                              child: Text(
+                                _getChannelCategoryLabel(ch.category),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF58A6FF)),
+                              ),
+                            ),
                           ),
-                          child: Text(
-                            _getChannelCategoryLabel(ch.category),
-                            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF58A6FF)),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF238636).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFF238636), width: 0.8),
+                            ),
+                            child: Text(
+                              _getChannelCountryLabel(ch.country),
+                              style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF3FB950)),
+                            ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF238636).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF238636), width: 0.8),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      const Row(
+                        children: [
+                          Icon(Icons.circle, color: Color(0xFF3FB950), size: 6),
+                          SizedBox(width: 4),
+                          Text(
+                            'LIVE',
+                            style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w600, color: Color(0xFF3FB950)),
                           ),
-                          child: Text(
-                            _getChannelCountryLabel(ch.country),
-                            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFF3FB950)),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF8957E5).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF8957E5), width: 0.8),
-                          ),
-                          child: Text(
-                            ch.source,
-                            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Color(0xFFD2A8FF)),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    const Row(
-                      children: [
-                        Icon(Icons.circle, color: Color(0xFF3FB950), size: 7),
-                        SizedBox(width: 4),
-                        Text(
-                          'LIVE STREAM',
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF3FB950)),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
 
-          // Action Buttons
+          // Action Buttons: Play, Play With..., Favourite
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: _TvFocusableButton(
+                  isPrimary: true,
+                  primaryColor: const Color(0xFF195FEB),
+                  borderRadius: BorderRadius.circular(6),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
                   onPressed: () => _playStream(streamData, isLive: true),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
-                  label: const Text('Play', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF195FEB),
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    minimumSize: Size.zero,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.play_arrow_rounded, size: 15, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text('Play', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ],
                   ),
                 ),
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: OutlinedButton.icon(
+                child: _TvFocusableButton(
+                  focusColor: const Color(0xFF388BFD),
+                  borderRadius: BorderRadius.circular(6),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
                   onPressed: () => _showPlayWithDialog(streamData, isLive: true),
-                  icon: const Icon(Icons.launch_rounded, size: 13, color: Color(0xFF58A6FF)),
-                  label: const Text('Play With...', style: TextStyle(fontSize: 10.5, color: Color(0xFF58A6FF))),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF388BFD), width: 0.8),
-                    padding: const EdgeInsets.symmetric(vertical: 7),
-                    minimumSize: Size.zero,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.launch_rounded, size: 12, color: Color(0xFF58A6FF)),
+                      SizedBox(width: 4),
+                      Text('Play With', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF58A6FF))),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               // Favourite Star Button
-              GestureDetector(
-                onTap: () => _toggleIptvFavourite(ch),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: _iptvFavourites.contains(ch.id)
-                        ? const Color(0xFFE3B341).withOpacity(0.2)
-                        : const Color(0xFF161B22),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: _iptvFavourites.contains(ch.id)
-                          ? const Color(0xFFE3B341)
-                          : const Color(0xFF30363D),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Icon(
-                    _iptvFavourites.contains(ch.id)
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
-                    color: _iptvFavourites.contains(ch.id)
-                        ? const Color(0xFFE3B341)
-                        : Colors.grey.shade500,
-                    size: 16,
-                  ),
+              _TvFocusableButton(
+                focusColor: const Color(0xFFE3B341),
+                borderRadius: BorderRadius.circular(6),
+                padding: const EdgeInsets.all(6),
+                onPressed: () => _toggleIptvFavourite(ch),
+                child: Icon(
+                  isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                  color: isFav ? const Color(0xFFE3B341) : Colors.grey.shade400,
+                  size: 16,
                 ),
               ),
             ],

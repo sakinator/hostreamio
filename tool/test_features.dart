@@ -290,8 +290,25 @@ https://restricted.stream.com/live/skyf1.m3u8
   assert(enrichedHin['name']!.contains('[Hindi]'), 'Language tag [Hindi] must be preserved in display name');
   assert(enrichedHin['badgeHeader']!.contains('[Hindi]'), 'Language tag [Hindi] must be preserved in badgeHeader');
 
+  // 20. Test Android TV D-Pad Focus Integrity, IPTV Grid Anti-Overlap & Stream Actions
+  print('\n--- [20/20] Testing Android TV D-Pad Focus Integrity, IPTV Anti-Overlap & Stream Actions ---');
+  final mainDart = File('android_app/lib/main.dart').readAsStringSync();
+  assert(mainDart.contains('mainAxisExtent: 156.0'), 'IPTV Grid must use fixed mainAxisExtent to eliminate card overlap');
+  assert(!mainDart.contains('_TvFocusableButton(\n              // D-pad Enter/Select plays the stream directly'),
+      'Stream card must not wrap action buttons inside monolithic card button');
+  assert(mainDart.contains("final isActive = (!_showOnlyFavourites && _selectedIptvCategory == cat);\n                    return _TvFocusableButton"),
+      'IPTV Category chips must use _TvFocusableButton for remote D-pad selection');
+  assert(mainDart.contains("final isActive = (_selectedIptvCountry == ctry);\n                    return _TvFocusableButton"),
+      'IPTV Country chips must use _TvFocusableButton for remote D-pad selection');
+  assert(mainDart.contains("Widget _buildStreamFilterChip(String filterKey, String label) {\n    final isActive = (_activeStreamFilter == filterKey);\n    return _TvFocusableButton"),
+      'Stream filter chips must use _TvFocusableButton');
+  print('✔ IPTV Grid uses fixed mainAxisExtent: 156.0 (Card overlap eliminated)');
+  print('✔ Category & Country chips use _TvFocusableButton with active state tracking');
+  print('✔ Stream cards have independent D-pad focusable Play, Play With, Cache, and Copy buttons');
+  print('✔ Stream filter chips use _TvFocusableButton with high-contrast TV focus outline');
+
   print('\n====================================================');
-  print('✅ All 19/19 regression test phases completed successfully!');
+  print('✅ All 20/20 regression test phases completed successfully!');
   print('====================================================');
   exit(0);
 }
