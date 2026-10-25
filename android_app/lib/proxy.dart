@@ -85,7 +85,7 @@ class StreamProxy {
   /// Handles incoming /proxy HTTP requests.
   static Future<void> handleRequest(HttpRequest request) async {
     final query = request.uri.queryParameters;
-    final targetUrl = query['url'];
+    var targetUrl = query['url'];
     final repId = query['rep_id'];
 
     if (targetUrl == null || targetUrl.isEmpty) {
@@ -94,6 +94,14 @@ class StreamProxy {
         ..write('Missing "url" query parameter')
         ..close();
       return;
+    }
+
+    // ── Pixeldrain Daily Bandwidth Limit Bypass ──
+    // Route pixeldrain.com/(u|api/file)/{id} through the uncapped CDN mirror
+    final pixeldrainMatch = RegExp(r'pixeldrain\.com/(?:u|api/file)/([a-zA-Z0-9_-]+)').firstMatch(targetUrl);
+    if (pixeldrainMatch != null) {
+      final fileId = pixeldrainMatch.group(1);
+      targetUrl = 'https://pixeldrain-bypass.gamedrive.to/api/file/$fileId';
     }
 
     Uri targetUri;

@@ -1511,12 +1511,13 @@ class WebUI {
       <div id="torboxAccountInfo" style="font-size:0.88rem; color:var(--text-muted); margin-bottom:14px; display:none;"></div>
 
       <div style="border-top:1px solid var(--border); padding-top:14px; margin-top:14px;">
-        <h3 style="font-size:1rem; margin-bottom:8px;">🚀 Upload & Cache Link to TorBox</h3>
+        <h3 style="font-size:1rem; margin-bottom:8px;">⚡ Universal Link Debrider &amp; Quick Stream</h3>
         <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:10px;">
-          Paste any non-cached stream or cloud link below to queue a WebDL job to TorBox:
+          Paste any raw video link, Magnet, TeraBox, Pixeldrain, 1Fichier, Mega, Rapidgator, or DDL URL below to resolve and stream directly:
         </p>
-        <div class="url-box">
-          <input class="url-input" id="torboxUploadUrl" placeholder="https://hubcloud.cx/drive/... or any supported hoster URL">
+        <div class="url-box" style="gap:8px; flex-wrap:wrap;">
+          <input class="url-input" id="torboxUploadUrl" placeholder="magnet:?xt=... or TeraBox, Pixeldrain, 1Fichier, HubCloud, DDL link..." style="flex:1; min-width:240px;">
+          <button class="btn btn-primary" id="btnResolveQuickStream" onclick="resolveAndQuickStream('torboxUploadUrl')" style="font-weight:700;">⚡ Resolve &amp; Stream</button>
           <button class="btn btn-success" id="btnUploadTorbox" onclick="uploadLinkToTorbox()">☁️⬆️ Cache to TorBox</button>
         </div>
         <div id="torboxUploadStatus" style="font-size:0.85rem; margin-top:6px; display:none;"></div>
@@ -2073,8 +2074,9 @@ class WebUI {
       </div>
 
       <!-- Quick Upload Input inside Caching Tab -->
-      <div class="url-box" style="margin-bottom:14px;">
-        <input class="url-input" id="cachingTabUploadUrl" placeholder="Paste any stream or cloud link (HubCloud, PixelDrain, GoFile, etc.) to start caching...">
+      <div class="url-box" style="margin-bottom:14px; gap:8px; flex-wrap:wrap;">
+        <input class="url-input" id="cachingTabUploadUrl" placeholder="Paste any Magnet, TeraBox, Pixeldrain, 1Fichier, HubCloud, or DDL link..." style="flex:1; min-width:240px;">
+        <button class="btn btn-primary" onclick="resolveAndQuickStream('cachingTabUploadUrl')" style="font-weight:700;">⚡ Resolve &amp; Stream</button>
         <button class="btn btn-success" onclick="uploadLinkFromCachingTab()">☁️⬆️ Start Caching</button>
       </div>
 
@@ -3086,6 +3088,32 @@ class WebUI {
       }
     }
 
+    async function resolveAndQuickStream(inputId) {
+      const input = document.getElementById(inputId);
+      const url = input ? input.value.trim() : '';
+      if (!url) {
+        alert('Please enter or paste a valid link (Magnet, TeraBox, Pixeldrain, 1Fichier, HubCloud, etc.)');
+        return;
+      }
+      showToast('⚡ Resolving stream link via debrid engine...');
+      try {
+        const res = await fetch('/api/debrid/resolve?url=' + encodeURIComponent(url));
+        const data = await res.json();
+        if (data.success && data.streamUrl) {
+          showToast('✅ Resolved via ' + (data.provider || 'Debrider') + '!');
+          playStream(data.streamUrl, data.title || 'Direct Stream');
+        } else {
+          const msg = data.message || 'Could not resolve direct playable stream.';
+          if (confirm(msg + '\n\nWould you like to queue it to TorBox cloud caching instead?')) {
+            if (inputId === 'torboxUploadUrl') uploadLinkToTorbox();
+            else uploadLinkFromCachingTab();
+          }
+        }
+      } catch (e) {
+        alert('Debrid resolution error: ' + e);
+      }
+    }
+
     async function uploadLinkFromCachingTab() {
       const input = document.getElementById('cachingTabUploadUrl');
       const url = input ? input.value.trim() : '';
@@ -3841,6 +3869,8 @@ class WebUI {
               underlyingUrl: underlyingUrl,
               torboxUrl: finalUrl.includes('/torbox/play') ? finalUrl : '',
               directUrl: !finalUrl.includes('/torbox/play') ? finalUrl : '',
+              faviconUrl: item.faviconUrl || '',
+              hostFaviconUrl: item.hostFaviconUrl || '',
               hosterName: hosterInfo.name,
               isHosterOffline: isHosterOffline,
               isTorboxCached: isTorboxCached,
@@ -3956,6 +3986,7 @@ class WebUI {
         return '<div class="modal-stream-card" style="background:#161b22; border:1px solid ' + (s.isTorboxCached ? '#238636' : '#30363d') + '; border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">' +
           '<div style="flex:1; min-width:200px;">' +
             '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">' +
+              (s.faviconUrl ? '<img src="' + escapeHtml(s.faviconUrl) + '" style="width:16px; height:16px; border-radius:4px; vertical-align:middle; margin-right:2px;" onerror="this.style.display=\'none\'">' : '') +
               badgeHtml +
               '<span class="badge" style="background:#090d13; color:var(--text-muted); font-size:0.75rem;">' + escapeHtml(s.name) + '</span>' +
             '</div>' +

@@ -10,6 +10,9 @@ import 'badge_service.dart';
 import 'torbox_service.dart';
 import 'opensubtitles_service.dart';
 import 'stream_probe_service.dart';
+import 'resolvers/terabox_resolver.dart';
+import 'resolvers/free_leech_service.dart';
+import 'seedr_service.dart';
 
 class _CachedScrape {
   final List<ScrapedStream> streams;
@@ -28,6 +31,8 @@ class ScrapedStream {
   final String? fileType;
   final String? quality;
   final String? fileSize;
+  final String? faviconUrl;
+  final String? hostFaviconUrl;
   final List<Map<String, dynamic>>? subtitles;
 
   ScrapedStream({
@@ -40,6 +45,8 @@ class ScrapedStream {
     this.fileType,
     this.quality,
     this.fileSize,
+    this.faviconUrl,
+    this.hostFaviconUrl,
     this.subtitles,
   });
 
@@ -53,6 +60,8 @@ class ScrapedStream {
         if (fileType != null && fileType!.isNotEmpty) 'fileType': fileType,
         if (fileSize != null && fileSize!.isNotEmpty) 'fileSize': fileSize,
         if (quality != null && quality!.isNotEmpty) 'quality': quality,
+        if (faviconUrl != null && faviconUrl!.isNotEmpty) 'faviconUrl': faviconUrl,
+        if (hostFaviconUrl != null && hostFaviconUrl!.isNotEmpty) 'hostFaviconUrl': hostFaviconUrl,
         if (behaviorHints != null) 'behaviorHints': behaviorHints,
         if (subtitles != null && subtitles!.isNotEmpty) 'subtitles': subtitles,
       };
@@ -148,8 +157,12 @@ class ScraperEngine {
               url: newUrl,
               behaviorHints: s.behaviorHints,
               provider: s.provider,
+              site: s.site,
+              fileType: s.fileType,
               quality: s.quality,
               fileSize: s.fileSize,
+              faviconUrl: s.faviconUrl,
+              hostFaviconUrl: s.hostFaviconUrl,
               subtitles: s.subtitles,
             );
           }
@@ -400,55 +413,116 @@ class ScraperEngine {
       final isTorrent = torrentHash != null || rawUrl.startsWith('magnet:');
 
       if (isTorrent) {
-        // Strictly only show if TorBox cached torrents is enabled AND API key is present
-        if (!cfg.enableTorboxCachedTorrents || torboxKey.isEmpty) continue;
-        // Strictly only show if already 100% cached on TorBox CDN (Zero P2P, instant cloud streaming)
-        final isCached = torrentHash != null && torrentCacheMap[torrentHash] == true;
-        if (!isCached) continue;
+        final isTorboxEligible = cfg.enableTorboxCachedTorrents && torboxKey.isNotEmpty;
+        final isTorboxCached = isTorboxEligible && torrentHash != null && torrentCacheMap[torrentHash] == true;
 
-        final sourceInfo = resolveSourceDetails(src.providerId ?? '', src.providerName ?? src.name, rawUrl);
-        final sourceName = sourceInfo['display']!;
-        final siteDomain = sourceInfo['domain']!;
-        final q = src.quality ?? '';
-        final qLabel = q.isNotEmpty ? q : 'HD';
-        final badge = src.getAudioBadge(mediaTitle: meta.title) ?? '';
-        final torboxPlayUrl = '$localBaseUrl/torbox/play?url=${Uri.encodeComponent(rawUrl.isNotEmpty ? rawUrl : 'magnet:?xt=urn:btih:$torrentHash')}';
+        if (isTorboxCached) {
+          final sourceInfo = resolveSourceDetails(src.providerId ?? '', src.providerName ?? src.name, rawUrl);
+          final sourceName = sourceInfo['display']!;
+          final siteDomain = sourceInfo['domain']!;
+          final q = src.quality ?? '';
+          final qLabel = q.isNotEmpty ? q : 'HD';
+          final badge = src.getAudioBadge(mediaTitle: meta.title) ?? '';
+          final torboxPlayUrl = '$localBaseUrl/torbox/play?url=${Uri.encodeComponent(rawUrl.isNotEmpty ? rawUrl : 'magnet:?xt=urn:btih:$torrentHash')}';
 
-        final cachedEnriched = BadgeService.enrichStream(
-          rawTitle: src.title ?? src.name ?? meta.title,
-          mediaTitle: meta.title,
-          year: meta.year,
-          season: meta.season,
-          episode: meta.episode,
-          quality: q,
-          codec: src.codec,
-          audioBadge: badge,
-          fileSize: src.fileSize,
-          providerName: '$sourceName (TorBox Cached)',
-          sourceName: sourceName,
-          siteDomain: siteDomain,
-          hostName: '⚡ TorBox Cloud CDN ($sourceName)',
-          ottPlatform: meta.ottPlatform,
-          isCached: true,
-          isHls: false,
-          isProxied: false,
-        );
+          final cachedEnriched = BadgeService.enrichStream(
+            rawTitle: src.title ?? src.name ?? meta.title,
+            mediaTitle: meta.title,
+            year: meta.year,
+            season: meta.season,
+            episode: meta.episode,
+            quality: q,
+            codec: src.codec,
+            audioBadge: badge,
+            fileSize: src.fileSize,
+            providerName: '$sourceName (TorBox Cached)',
+            sourceName: sourceName,
+            siteDomain: siteDomain,
+            hostName: '⚡ TorBox Cloud CDN ($sourceName)',
+            ottPlatform: meta.ottPlatform,
+            isCached: true,
+            isHls: false,
+            isProxied: false,
+          );
 
-        final cachedBadge = cachedEnriched['badgeHeader'] ?? qLabel;
-        final cachedStream = ScrapedStream(
-          name: '⚡ TorBox [Cached] • $sourceName\n$cachedBadge',
-          title: '${cachedEnriched['title']}\n⚡ Instant TorBox Cloud CDN Playback (Zero P2P)',
-          url: torboxPlayUrl,
-          behaviorHints: const {'notWebReady': false},
-          provider: '$sourceName (TorBox Cached)',
-          site: siteDomain,
-          fileType: cachedEnriched['fileType'],
-          quality: q,
-          fileSize: cachedEnriched['fileSize'],
-          subtitles: openSubtitlesList,
-        );
-        finalStreams.add(cachedStream);
-        continue; // Torrent handled; never fall through to direct play
+          final cachedBadge = cachedEnriched['badgeHeader'] ?? qLabel;
+          final cachedStream = ScrapedStream(
+            name: '⚡ TorBox [Cached] • $sourceName\n$cachedBadge',
+            title: '${cachedEnriched['title']}\n⚡ Instant TorBox Cloud CDN Playback (Zero P2P)',
+            url: torboxPlayUrl,
+            behaviorHints: const {'notWebReady': false},
+            provider: '$sourceName (TorBox Cached)',
+            site: siteDomain,
+            fileType: cachedEnriched['fileType'],
+            quality: q,
+            fileSize: cachedEnriched['fileSize'],
+            faviconUrl: cachedEnriched['faviconUrl'],
+            hostFaviconUrl: cachedEnriched['hostFaviconUrl'],
+            subtitles: openSubtitlesList,
+          );
+          finalStreams.add(cachedStream);
+          continue; // Torrent handled; never fall through to direct play
+        }
+
+        // ── Seedr.cc Free Cloud Fallback for Small Torrents (< 2GB) ──
+        if (SeedrService.instance.isConfigured) {
+          final sizeStr = src.fileSize ?? '';
+          final isOversized = sizeStr.contains('GB') &&
+              (double.tryParse(sizeStr.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0) > 2.0;
+          if (!isOversized) {
+            final magnet = rawUrl.startsWith('magnet:') ? rawUrl : 'magnet:?xt=urn:btih:$torrentHash';
+            final seedrRes = await SeedrService.instance.resolveMagnet(magnet);
+            if (seedrRes.success && seedrRes.streamUrl != null) {
+              final sourceInfo = resolveSourceDetails(src.providerId ?? '', src.providerName ?? src.name, rawUrl);
+              final sourceName = sourceInfo['display']!;
+              final q = src.quality ?? '';
+              final qLabel = q.isNotEmpty ? q : 'HD';
+              final badge = src.getAudioBadge(mediaTitle: meta.title) ?? '';
+
+              final seedrEnriched = BadgeService.enrichStream(
+                rawTitle: (seedrRes.filename != null && seedrRes.filename!.isNotEmpty)
+                    ? seedrRes.filename!
+                    : (src.title ?? src.name ?? meta.title),
+                mediaTitle: meta.title,
+                year: meta.year,
+                season: meta.season,
+                episode: meta.episode,
+                quality: q,
+                codec: src.codec,
+                audioBadge: badge,
+                fileSize: seedrRes.fileSizeFormatted.isNotEmpty ? seedrRes.fileSizeFormatted : src.fileSize,
+                providerName: '$sourceName (Seedr Cloud)',
+                sourceName: sourceName,
+                siteDomain: 'seedr.cc',
+                hostName: '⚡ Seedr Cloud CDN ($sourceName)',
+                ottPlatform: meta.ottPlatform,
+                isCached: true,
+                isHls: false,
+                isProxied: false,
+              );
+
+              final seedrBadge = seedrEnriched['badgeHeader'] ?? qLabel;
+              final seedrStream = ScrapedStream(
+                name: '⚡ Seedr [Cloud] • $sourceName\n$seedrBadge',
+                title: '${seedrEnriched['title']}\n⚡ Instant Seedr.cc Free Cloud Playback (Zero P2P)',
+                url: seedrRes.streamUrl!,
+                behaviorHints: const {'notWebReady': false},
+                provider: '$sourceName (Seedr Cloud)',
+                site: 'seedr.cc',
+                fileType: seedrEnriched['fileType'],
+                quality: q,
+                fileSize: seedrEnriched['fileSize'],
+                faviconUrl: seedrEnriched['faviconUrl'],
+                hostFaviconUrl: seedrEnriched['hostFaviconUrl'],
+                subtitles: openSubtitlesList,
+              );
+              finalStreams.add(seedrStream);
+              continue;
+            }
+          }
+        }
+
+        continue;
       }
 
       // Non-torrent: Standard Direct HTTP(S) & Hoster Link Processing
@@ -480,6 +554,8 @@ class ScraperEngine {
             fileType: existing.fileType,
             quality: existing.quality,
             fileSize: existing.fileSize,
+            faviconUrl: existing.faviconUrl,
+            hostFaviconUrl: existing.hostFaviconUrl,
             subtitles: existing.subtitles,
           );
           final idx = finalStreams.indexOf(existing);
@@ -489,6 +565,106 @@ class ScraperEngine {
         continue;
       }
       seenUrls.add(rawUrl);
+
+      // ── 1. TeraBox Direct Video Stream Extractor ──
+      if (TeraBoxResolver.canHandle(rawUrl)) {
+        final teraRes = await TeraBoxResolver.resolve(rawUrl);
+        if (teraRes.success && teraRes.streamUrl != null && teraRes.streamUrl!.isNotEmpty) {
+          final teraPlayUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(teraRes.streamUrl!)}';
+          final q = src.quality ?? '1080p';
+          final badge = src.getAudioBadge(mediaTitle: meta.title) ?? '';
+
+          final teraEnriched = BadgeService.enrichStream(
+            rawTitle: (teraRes.filename != null && teraRes.filename!.isNotEmpty)
+                ? teraRes.filename!
+                : (src.title ?? src.name ?? meta.title),
+            mediaTitle: meta.title,
+            year: meta.year,
+            season: meta.season,
+            episode: meta.episode,
+            quality: q,
+            codec: src.codec,
+            audioBadge: badge,
+            fileSize: teraRes.fileSizeFormatted.isNotEmpty ? teraRes.fileSizeFormatted : src.fileSize,
+            providerName: '$sourceName (⚡ TeraBox Direct)',
+            sourceName: sourceName,
+            siteDomain: 'terabox.com',
+            hostName: '⚡ TeraBox High-Speed CDN',
+            ottPlatform: meta.ottPlatform,
+            isCached: false,
+            isHls: false,
+            isProxied: true,
+          );
+
+          final teraBadge = teraEnriched['badgeHeader'] ?? q;
+          final teraStream = ScrapedStream(
+            name: '⚡ TeraBox [Direct CDN] • $sourceName\n$teraBadge',
+            title: '${teraEnriched['title']}\n⚡ Direct High-Speed TeraBox CDN Video Stream',
+            url: teraPlayUrl,
+            behaviorHints: const {'notWebReady': false},
+            provider: '$sourceName (TeraBox Direct)',
+            site: 'terabox.com',
+            fileType: teraEnriched['fileType'],
+            quality: q,
+            fileSize: teraEnriched['fileSize'],
+            faviconUrl: teraEnriched['faviconUrl'],
+            hostFaviconUrl: teraEnriched['hostFaviconUrl'],
+            subtitles: openSubtitlesList,
+          );
+          finalStreams.add(teraStream);
+          continue;
+        }
+      }
+
+      // ── 2. Public Guest Leech Fallback (Deepbrid / High-Way / Get4All) ──
+      if (FreeLeechService.canHandle(rawUrl) && !isTorboxCached) {
+        final leechRes = await FreeLeechService.instance.resolve(rawUrl);
+        if (leechRes.success && leechRes.streamUrl != null && leechRes.streamUrl!.isNotEmpty) {
+          final leechPlayUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(leechRes.streamUrl!)}';
+          final lockerName = FreeLeechService.identifyLocker(rawUrl);
+          final q = src.quality ?? 'HD';
+          final badge = src.getAudioBadge(mediaTitle: meta.title) ?? '';
+
+          final leechEnriched = BadgeService.enrichStream(
+            rawTitle: (leechRes.title != null && leechRes.title!.isNotEmpty)
+                ? leechRes.title!
+                : (src.title ?? src.name ?? meta.title),
+            mediaTitle: meta.title,
+            year: meta.year,
+            season: meta.season,
+            episode: meta.episode,
+            quality: q,
+            codec: src.codec,
+            audioBadge: badge,
+            fileSize: leechRes.fileSizeFormatted.isNotEmpty ? leechRes.fileSizeFormatted : src.fileSize,
+            providerName: '$sourceName ($lockerName Free Leech)',
+            sourceName: sourceName,
+            siteDomain: siteDomain,
+            hostName: '⚡ $lockerName (Free Leech)',
+            ottPlatform: meta.ottPlatform,
+            isCached: false,
+            isHls: false,
+            isProxied: true,
+          );
+
+          final leechBadge = leechEnriched['badgeHeader'] ?? q;
+          final leechStream = ScrapedStream(
+            name: '⚡ Free Leech [$lockerName] • $sourceName\n$leechBadge',
+            title: '${leechEnriched['title']}\n⚡ Unrestricted Direct Stream via ${leechRes.provider}',
+            url: leechPlayUrl,
+            behaviorHints: const {'notWebReady': false},
+            provider: '$sourceName (Free Leech)',
+            site: siteDomain,
+            fileType: leechEnriched['fileType'],
+            quality: q,
+            fileSize: leechEnriched['fileSize'],
+            faviconUrl: leechEnriched['faviconUrl'],
+            hostFaviconUrl: leechEnriched['hostFaviconUrl'],
+            subtitles: openSubtitlesList,
+          );
+          finalStreams.add(leechStream);
+        }
+      }
 
       final q = src.quality ?? '';
       final isHls = rawUrl.contains('.m3u8');
@@ -511,7 +687,11 @@ class ScraperEngine {
       // ── Direct (Uncached) Stream Configuration ────────────────────────
       String directStreamUrl = rawUrl;
       bool isDirectProxied = false;
-      if (cfg.enableProxyForHeaders && headers.isNotEmpty) {
+      if (rawUrl.contains('pixeldrain.com')) {
+        // Pixeldrain Daily Bandwidth Limit Bypass
+        directStreamUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(rawUrl)}';
+        isDirectProxied = true;
+      } else if (cfg.enableProxyForHeaders && headers.isNotEmpty) {
         final headersJson = jsonEncode(headers);
         directStreamUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(rawUrl)}'
             '&headers=${Uri.encodeComponent(headersJson)}';
@@ -606,6 +786,8 @@ class ScraperEngine {
           fileType: cachedEnriched['fileType'] ?? probedType,
           quality: q,
           fileSize: cachedEnriched['fileSize'] ?? effectiveFileSize,
+          faviconUrl: cachedEnriched['faviconUrl'],
+          hostFaviconUrl: cachedEnriched['hostFaviconUrl'],
           subtitles: subList,
         );
         finalStreams.add(cachedStream);
@@ -623,6 +805,8 @@ class ScraperEngine {
             fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
             fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
+            faviconUrl: directEnriched['faviconUrl'],
+            hostFaviconUrl: directEnriched['hostFaviconUrl'],
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -663,6 +847,8 @@ class ScraperEngine {
           fileType: cacheEnriched['fileType'] ?? probedType,
           quality: q,
           fileSize: cacheEnriched['fileSize'] ?? effectiveFileSize,
+          faviconUrl: cacheEnriched['faviconUrl'],
+          hostFaviconUrl: cacheEnriched['hostFaviconUrl'],
           subtitles: subList,
         );
         finalStreams.add(startCachingStream);
@@ -681,13 +867,14 @@ class ScraperEngine {
             fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
             fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
+            faviconUrl: directEnriched['faviconUrl'],
+            hostFaviconUrl: directEnriched['hostFaviconUrl'],
             subtitles: subList,
           );
           finalStreams.add(directStream);
         }
       } else if (isHosterOffline) {
         // ── 3. Hoster is recognized by TorBox but currently OFFLINE on TorBox ──
-        // Do NOT offer "Start Caching" (it will fail). Offer direct play if playable, with offline notice!
         if (isDirectPlayableUrl(rawUrl, isProbed: isProbedMedia)) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final offlineName = offlineHosterName.isNotEmpty ? offlineHosterName : hostName;
@@ -701,6 +888,8 @@ class ScraperEngine {
             fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
             fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
+            faviconUrl: directEnriched['faviconUrl'],
+            hostFaviconUrl: directEnriched['hostFaviconUrl'],
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -708,7 +897,6 @@ class ScraperEngine {
         }
       } else {
         // ── 4. Standard Non-Hoster / Direct Stream (1 link) ──
-        // Validate that this link is actually a playable stream rather than an unparsed website/blog URL!
         if (isDirectPlayableUrl(rawUrl, isProbed: isProbedMedia)) {
           final directBadge = directEnriched['badgeHeader'] ?? qLabel;
           final directStream = ScrapedStream(
@@ -721,6 +909,8 @@ class ScraperEngine {
             fileType: directEnriched['fileType'] ?? probedType,
             quality: q,
             fileSize: directEnriched['fileSize'] ?? effectiveFileSize,
+            faviconUrl: directEnriched['faviconUrl'],
+            hostFaviconUrl: directEnriched['hostFaviconUrl'],
             subtitles: subList,
           );
           finalStreams.add(directStream);
@@ -1101,7 +1291,10 @@ class ScraperEngine {
     if (lower.contains('hubcloud')) return 'HubCloud';
     if (lower.contains('driveseed') || lower.contains('drivebot')) return 'DriveSeed';
     if (lower.contains('fast-dl') || lower.contains('fastdl') || lower.contains('fastcloud')) return 'Fast-DL';
-    if (lower.contains('pixeldrain')) return 'PixelDrain';
+    if (lower.contains('pixeldrain-bypass')) return 'PixelDrain Unlimited Bypass';
+    if (lower.contains('pixeldrain')) return 'PixelDrain Bypass';
+    if (lower.contains('terabox') || lower.contains('1024tera') || lower.contains('terasharelink')) return 'TeraBox Direct CDN';
+    if (lower.contains('seedr')) return 'Seedr Cloud CDN';
     if (lower.contains('1fichier')) return '1fichier';
     if (lower.contains('rapidgator')) return 'Rapidgator';
     if (lower.contains('turbobit')) return 'Turbobit';

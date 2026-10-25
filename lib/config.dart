@@ -12,12 +12,15 @@ class AddonConfig {
   Set<String> disabledProviders = {};
   List<String> providerOrder = [];
   bool autoCheckUpdates = true;
-  String appVersion = '1.0.3';
+  String appVersion = '1.0.19';
 
   /// TMDB API key used by metadata_service.dart.
   /// Override in data/config.json with your own key if the default is rate-limited.
   String tmdbApiKey = 'b3556f3b206e16f82df4d1f6fd4545e6';
   String torboxApiKey = '';
+  String seedrToken = '';
+  String seedrUsername = '';
+  String seedrPassword = '';
 
   /// API 5: OMDb & IMDb Ratings API Key
   String omdbApiKey = 'b9a5e69d';
@@ -84,6 +87,15 @@ class AddonConfig {
         }
         if (map['torboxApiKey'] is String) {
           torboxApiKey = map['torboxApiKey'];
+        }
+        if (map['seedrToken'] is String) {
+          seedrToken = map['seedrToken'];
+        }
+        if (map['seedrUsername'] is String) {
+          seedrUsername = map['seedrUsername'];
+        }
+        if (map['seedrPassword'] is String) {
+          seedrPassword = map['seedrPassword'];
         }
         if (map['omdbApiKey'] is String && (map['omdbApiKey'] as String).isNotEmpty) {
           omdbApiKey = map['omdbApiKey'];
@@ -200,6 +212,9 @@ class AddonConfig {
         'autoCheckUpdates': autoCheckUpdates,
         'tmdbApiKey': tmdbApiKey,
         'torboxApiKey': torboxApiKey,
+        'seedrToken': seedrToken,
+        'seedrUsername': seedrUsername,
+        'seedrPassword': seedrPassword,
         'omdbApiKey': omdbApiKey,
         'fanartApiKey': fanartApiKey,
         'tvdbApiKey': tvdbApiKey,

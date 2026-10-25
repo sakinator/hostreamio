@@ -14,6 +14,9 @@ import 'dtdd_service.dart';
 import 'scraper_engine.dart';
 import 'server_service.dart';
 import 'torbox_service.dart';
+import 'resolvers/terabox_resolver.dart';
+import 'resolvers/free_leech_service.dart';
+import 'seedr_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
@@ -1344,6 +1347,111 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     }
   }
 
+  Future<void> _resolveAndQuickStreamFromCachingInput() async {
+    final url = _cachingUploadInputController.text.trim();
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter or paste a valid stream link or magnet.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('⚡ Resolving stream via debrider engine...')),
+    );
+
+    // 1. TeraBox check
+    if (TeraBoxResolver.canHandle(url)) {
+      final res = await TeraBoxResolver.resolve(url);
+      if (res.success && res.streamUrl != null) {
+        _cachingUploadInputController.clear();
+        _playStream({
+          'finalUrl': res.streamUrl!,
+          'name': '⚡ TeraBox Direct',
+          'title': res.filename ?? 'TeraBox Video Stream',
+        });
+        return;
+      }
+    }
+
+    // 2. Pixeldrain check
+    if (url.contains('pixeldrain.com')) {
+      final match = RegExp(r'pixeldrain\.com/(?:u|api/file)/([a-zA-Z0-9_-]+)').firstMatch(url);
+      final streamUrl = match != null
+          ? 'https://pixeldrain-bypass.gamedrive.to/api/file/${match.group(1)}'
+          : url;
+      _cachingUploadInputController.clear();
+      _playStream({
+        'finalUrl': streamUrl,
+        'name': '⚡ Pixeldrain Bypass',
+        'title': 'Pixeldrain Unlimited Stream',
+      });
+      return;
+    }
+
+    // 3. Free Leech check
+    if (FreeLeechService.canHandle(url)) {
+      final res = await FreeLeechService.instance.resolve(url);
+      if (res.success && res.streamUrl != null) {
+        _cachingUploadInputController.clear();
+        final locker = FreeLeechService.identifyLocker(url);
+        _playStream({
+          'finalUrl': res.streamUrl!,
+          'name': '⚡ Free Leech ($locker)',
+          'title': res.title ?? '$locker Unrestricted Stream',
+        });
+        return;
+      }
+    }
+
+    // 4. Magnet / Seedr check
+    if (url.startsWith('magnet:') && SeedrService.instance.isConfigured) {
+      final res = await SeedrService.instance.resolveMagnet(url);
+      if (res.success && res.streamUrl != null) {
+        _cachingUploadInputController.clear();
+        _playStream({
+          'finalUrl': res.streamUrl!,
+          'name': '⚡ Seedr Cloud',
+          'title': res.filename ?? 'Seedr Video Stream',
+        });
+        return;
+      }
+    }
+
+    // 5. TorBox Debrid check
+    final apiKey = AddonConfig.instance.torboxApiKey.trim();
+    if (apiKey.isNotEmpty) {
+      final debrided = await TorboxService.instance.debridLink(url, apiKey);
+      if (debrided != null && debrided.isNotEmpty) {
+        _cachingUploadInputController.clear();
+        _playStream({
+          'finalUrl': debrided,
+          'name': '⚡ TorBox Cloud',
+          'title': 'TorBox Instant Stream',
+        });
+        return;
+      }
+    }
+
+    // 6. Direct playable stream fallback
+    if (ScraperEngine.isDirectPlayableUrl(url)) {
+      _cachingUploadInputController.clear();
+      _playStream({
+        'finalUrl': url,
+        'name': '🌐 Direct Web Stream',
+        'title': 'Direct Stream',
+      });
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not resolve link directly. You can click "Start Caching" to download it to TorBox cloud.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
   Widget _buildCachingView({bool isWide = false}) {
     final hasKey = AddonConfig.instance.torboxApiKey.trim().isNotEmpty;
 
@@ -1412,6 +1520,18 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _resolveAndQuickStreamFromCachingInput,
+                    icon: const Icon(Icons.bolt_rounded, size: 16),
+                    label: const Text('Resolve & Stream', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF195FEB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -5034,9 +5154,36 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     final combined = '$rawName $rawTitle $sceneFilename'.toUpperCase();
     final badges = <Widget>[];
 
+    // 0. Retina Brand Favicon Logo (Official 64px S2 Favicon)
+    final faviconUrl = s['faviconUrl']?.toString() ?? '';
+    if (faviconUrl.isNotEmpty) {
+      badges.add(
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.network(
+              faviconUrl,
+              width: 18,
+              height: 18,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      );
+    }
+
     // 1. Tier / Source
     if (isCached) {
       badges.add(_buildFusionBadge('⚡ TorBox Cached', bg: const Color(0xFF238636), border: const Color(0xFF3FB950), textColor: const Color(0xFF3FB950)));
+    } else if (combined.contains('SEEDR')) {
+      badges.add(_buildFusionBadge('⚡ Seedr Cloud', bg: const Color(0xFF0284C7), border: const Color(0xFF38BDF8), textColor: const Color(0xFF38BDF8)));
+    } else if (combined.contains('TERABOX')) {
+      badges.add(_buildFusionBadge('⚡ TeraBox Direct', bg: const Color(0xFF7C3AED), border: const Color(0xFFA78BFA), textColor: const Color(0xFFA78BFA)));
+    } else if (combined.contains('FREE LEECH')) {
+      badges.add(_buildFusionBadge('⚡ Free Leech', bg: const Color(0xFFD97706), border: const Color(0xFFFBBF24), textColor: const Color(0xFFFBBF24)));
+    } else if (combined.contains('PIXELDRAIN') && (combined.contains('BYPASS') || s['url'].toString().contains('/proxy'))) {
+      badges.add(_buildFusionBadge('⚡ Pixeldrain Bypass', bg: const Color(0xFF059669), border: const Color(0xFF34D399), textColor: const Color(0xFF34D399)));
     } else if (isCacheTag) {
       badges.add(_buildFusionBadge('☁️ TorBox Cachable', bg: const Color(0xFF195FEB), border: const Color(0xFF58A6FF), textColor: const Color(0xFF58A6FF)));
     } else {

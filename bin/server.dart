@@ -13,6 +13,10 @@ import 'package:playtorrio_nuvio_addon/live_sports_service.dart';
 import 'package:playtorrio_nuvio_addon/doh_resolver.dart';
 import 'package:playtorrio_nuvio_addon/key_validator.dart';
 import 'package:playtorrio_nuvio_addon/dtdd_service.dart';
+import 'package:playtorrio_nuvio_addon/badge_service.dart';
+import 'package:playtorrio_nuvio_addon/resolvers/terabox_resolver.dart';
+import 'package:playtorrio_nuvio_addon/resolvers/free_leech_service.dart';
+import 'package:playtorrio_nuvio_addon/seedr_service.dart';
 
 void main(List<String> args) async {
   runZonedGuarded(() async {
@@ -109,6 +113,7 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
       path.startsWith('/proxy') ||
       path.startsWith('/torbox/play') ||
       path.startsWith('/video') ||
+      path.startsWith('/api/debrid') ||
       path == '/logo.png' ||
       path == '/favicon.png' ||
       path == '/favicon.ico' ||
@@ -825,6 +830,157 @@ Future<void> _handleRequest(HttpRequest request, String lanIp, int port) async {
       final ok = await TorboxService.instance.deleteQueueItem(id, type, apiKey);
       request.response.headers.contentType = ContentType.json;
       request.response.write(jsonEncode({'success': ok}));
+      await request.response.close();
+      return;
+    }
+
+    // ── 5d3b. API: Universal Link Debrider / Quick Stream: GET/POST /api/debrid/resolve ──
+    if (path == '/api/debrid/resolve') {
+      String link = request.uri.queryParameters['url'] ?? '';
+      if (link.isEmpty && method == 'POST') {
+        try {
+          final bodyStr = await utf8.decodeStream(request);
+          final map = _safeParseJsonMap(bodyStr) ?? {};
+          link = map['url']?.toString().trim() ?? '';
+        } catch (_) {}
+      }
+
+      if (link.isEmpty) {
+        request.response.statusCode = HttpStatus.badRequest;
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({'success': false, 'message': 'Missing URL parameter'}));
+        await request.response.close();
+        return;
+      }
+
+      final apiKey = AddonConfig.instance.torboxApiKey.trim();
+
+      // 1. TeraBox check
+      if (TeraBoxResolver.canHandle(link)) {
+        final res = await TeraBoxResolver.resolve(link);
+        if (res.success && res.streamUrl != null) {
+          final streamUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(res.streamUrl!)}';
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({
+            'success': true,
+            'provider': 'TeraBox Direct CDN',
+            'title': res.filename ?? 'TeraBox Stream',
+            'streamUrl': streamUrl,
+            'fileSize': res.fileSizeFormatted,
+            'faviconUrl': BadgeService.getFaviconUrl('terabox.com'),
+          }));
+          await request.response.close();
+          return;
+        }
+      }
+
+      // 2. Pixeldrain check
+      if (link.contains('pixeldrain.com')) {
+        final streamUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(link)}';
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'success': true,
+          'provider': 'Pixeldrain Bypass CDN',
+          'title': 'Pixeldrain Stream',
+          'streamUrl': streamUrl,
+          'faviconUrl': BadgeService.getFaviconUrl('pixeldrain.com'),
+        }));
+        await request.response.close();
+        return;
+      }
+
+      // 3. Free Leech Cyberlockers check
+      if (FreeLeechService.canHandle(link)) {
+        final leechRes = await FreeLeechService.instance.resolve(link);
+        if (leechRes.success && leechRes.streamUrl != null) {
+          final streamUrl = '$localBaseUrl/proxy?url=${Uri.encodeComponent(leechRes.streamUrl!)}';
+          final locker = FreeLeechService.identifyLocker(link);
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({
+            'success': true,
+            'provider': '$locker (${leechRes.provider})',
+            'title': leechRes.title ?? '$locker Stream',
+            'streamUrl': streamUrl,
+            'fileSize': leechRes.fileSizeFormatted,
+            'faviconUrl': BadgeService.getFaviconUrl(locker),
+          }));
+          await request.response.close();
+          return;
+        }
+      }
+
+      // 4. Magnet / Torrent check
+      if (link.startsWith('magnet:') || link.startsWith('http') && link.contains('.torrent')) {
+        if (apiKey.isNotEmpty) {
+          final debridedUrl = await TorboxService.instance.debridLink(link, apiKey);
+          if (debridedUrl != null && debridedUrl.isNotEmpty) {
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(jsonEncode({
+              'success': true,
+              'provider': 'TorBox Cloud CDN',
+              'title': 'TorBox Instant Stream',
+              'streamUrl': debridedUrl,
+              'faviconUrl': BadgeService.getFaviconUrl('torbox.app'),
+            }));
+            await request.response.close();
+            return;
+          }
+        }
+        if (SeedrService.instance.isConfigured) {
+          final seedrRes = await SeedrService.instance.resolveMagnet(link);
+          if (seedrRes.success && seedrRes.streamUrl != null) {
+            request.response.headers.contentType = ContentType.json;
+            request.response.write(jsonEncode({
+              'success': true,
+              'provider': 'Seedr Cloud CDN',
+              'title': seedrRes.filename ?? 'Seedr Stream',
+              'streamUrl': seedrRes.streamUrl,
+              'fileSize': seedrRes.fileSizeFormatted,
+              'faviconUrl': BadgeService.getFaviconUrl('seedr.cc'),
+            }));
+            await request.response.close();
+            return;
+          }
+        }
+      }
+
+      // 5. TorBox Hoster Debrid check
+      if (apiKey.isNotEmpty && TorboxService.instance.isSupportedHoster(link)) {
+        final debridedUrl = await TorboxService.instance.debridLink(link, apiKey);
+        if (debridedUrl != null && debridedUrl.isNotEmpty) {
+          request.response.headers.contentType = ContentType.json;
+          request.response.write(jsonEncode({
+            'success': true,
+            'provider': 'TorBox Hoster Debrid',
+            'title': 'Debrided Stream',
+            'streamUrl': debridedUrl,
+            'faviconUrl': BadgeService.getFaviconUrl('torbox.app'),
+          }));
+          await request.response.close();
+          return;
+        }
+      }
+
+      // 6. Direct playable stream fallback
+      if (ScraperEngine.isDirectPlayableUrl(link)) {
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode({
+          'success': true,
+          'provider': 'Direct Web Stream',
+          'title': 'Direct Stream',
+          'streamUrl': link,
+          'faviconUrl': BadgeService.getFaviconUrl(link),
+        }));
+        await request.response.close();
+        return;
+      }
+
+      // 7. Could not resolve immediately
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode({
+        'success': false,
+        'message': 'Could not resolve playable stream directly. You can queue it to TorBox caching.',
+      }));
       await request.response.close();
       return;
     }

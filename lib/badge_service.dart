@@ -545,6 +545,11 @@ class BadgeService {
 
     final titleWithMarkers = '${titleLines.join('\n')}\n$allMarkers';
 
+    final siteFavicon = effectiveSite.isNotEmpty
+        ? getFaviconUrl(effectiveSite)
+        : getFaviconUrl(effectiveSource);
+    final hostFavicon = getFaviconUrl(effectiveHost);
+
     return {
       'name': displayName,
       'title': titleWithMarkers,
@@ -553,7 +558,71 @@ class BadgeService {
       'fileType': fileType,
       'source': effectiveSource,
       if (effectiveSite.isNotEmpty) 'site': effectiveSite,
+      'faviconUrl': siteFavicon,
+      'hostFaviconUrl': hostFavicon,
     };
+  }
+
+  /// Generates a Google S2 64px retina favicon URL for any domain, host, or brand name.
+  static String getFaviconUrl(String domainOrHost) {
+    if (domainOrHost.isEmpty) return 'https://www.google.com/s2/favicons?domain=stremio.com&sz=64';
+    var domain = domainOrHost.toLowerCase().trim();
+    if (domain.startsWith('http://') || domain.startsWith('https://')) {
+      try {
+        domain = Uri.parse(domain).host;
+      } catch (_) {}
+    }
+    domain = domain.split('/')[0].split(':')[0].trim();
+
+    final knownDomains = {
+      'netflix': 'netflix.com',
+      'prime': 'primevideo.com',
+      'amazon': 'primevideo.com',
+      'hotstar': 'hotstar.com',
+      'disney': 'disneyplus.com',
+      'apple': 'tv.apple.com',
+      'max': 'max.com',
+      'hbo': 'max.com',
+      'zee5': 'zee5.com',
+      'sonyliv': 'sonyliv.com',
+      'jio': 'jiocinema.com',
+      'aha': 'aha.video',
+      'sunnxt': 'sunnxt.net',
+      'hoichoi': 'hoichoi.tv',
+      'hubcloud': 'hubcloud.club',
+      'pixeldrain': 'pixeldrain.com',
+      'terabox': 'terabox.com',
+      '1024tera': 'terabox.com',
+      'gofile': 'gofile.io',
+      '1fichier': '1fichier.com',
+      'rapidgator': 'rapidgator.net',
+      'mega': 'mega.nz',
+      'ddownload': 'ddownload.com',
+      'seedr': 'seedr.cc',
+      'torbox': 'torbox.app',
+      'vegamovies': 'vegamovies.im',
+      'bollyflix': 'bollyflix.lat',
+      'moviesdrive': 'moviesdrive.world',
+      'uhdmovies': 'uhdmovies.lat',
+      'streamtape': 'streamtape.com',
+      'voe': 'voe.sx',
+      'mixdrop': 'mixdrop.ag',
+      'dood': 'doodstream.com',
+      'upstream': 'upstream.to',
+    };
+
+    for (final entry in knownDomains.entries) {
+      if (domain.contains(entry.key)) {
+        domain = entry.value;
+        break;
+      }
+    }
+
+    if (!domain.contains('.')) {
+      domain = '$domain.com';
+    }
+
+    return 'https://www.google.com/s2/favicons?domain=$domain&sz=64';
   }
 
   /// Formats a standardized scene-style release title so any media center

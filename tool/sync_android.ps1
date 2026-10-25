@@ -18,6 +18,7 @@ $sourceFiles = @(
     "scraper_engine.dart",
     "scraper_registry.dart",
     "stream_probe_service.dart",
+    "seedr_service.dart",
     "cloudflare_tunnel_service.dart",
     "torbox_service.dart",
     "tvdb_service.dart",
@@ -35,6 +36,14 @@ foreach ($f in $sourceFiles) {
         Copy-Item -Path $src -Destination $dst -Force
         Write-Host "  -> Synced $f" -ForegroundColor Green
     }
+}
+
+$srcResolvers = Join-Path $libDir "resolvers"
+$dstResolvers = Join-Path $androidLibDir "resolvers"
+if (Test-Path $srcResolvers) {
+    if (-not (Test-Path $dstResolvers)) { New-Item -ItemType Directory -Path $dstResolvers -Force | Out-Null }
+    Copy-Item -Path "$srcResolvers\*" -Destination $dstResolvers -Recurse -Force
+    Write-Host "  -> Synced resolvers directory recursively" -ForegroundColor Green
 }
 
 $srcScrapers = Join-Path $libDir "upstream\services\scraper"
